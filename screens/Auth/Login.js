@@ -2,56 +2,54 @@ import { View, StyleSheet, Text } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { db } from '../services/firebaseConfig';
-import { collection, addDoc } from "firebase/firestore";
+import { db } from '../../config/firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
 
 // Esquema de validación
-const RegisterSchema = Yup.object().shape({
-  nombre: Yup.string().required('Nombre obligatorio'),
+const LoginSchema = Yup.object().shape({
   email: Yup.string().email('Email inválido').required('Email obligatorio'),
-  contrasena: Yup.string()
-    .min(6, 'Mínimo 6 caracteres')
-    .required('Contraseña obligatoria'),
-  rol: Yup.string().required('Rol obligatorio'),
+  contrasena: Yup.string().required('Contraseña obligatoria'),
 });
 
-export default function RegisterScreen() {
-  const handleRegister = async (values) => {
+export default function LoginScreen() {
+  const navigation = useNavigation();
+
+  const handleLogin = async (values) => {
     try {
-      // Guardar en Firestore
-      await addDoc(collection(db, "usuarios"), {
-        nombre: values.nombre,
-        email: values.email,
-        contrasena: values.contrasena, // ⚠️ En la práctica NUNCA guardes contraseñas en Firestore
-        rol: values.rol,
+      // Consultar usuarios en Firestore
+      const q = query(
+        collection(db, 'usuarios'),
+        where('email', '==', values.email),
+        where('contrasena', '==', values.contrasena)
+      );
+
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        alert('Usuario o contraseña incorrectos');
+      } else {
+        const userData = querySnapshot.docs[0].data();
+        alert(`¡Bienvenido, ${userData.nombre}!`);
+        navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
       });
-      alert("¡Registro exitoso!");
+      }
     } catch (error) {
-      alert("Error al registrar: " + error.message);
+      alert('Error al iniciar sesión: ' + error.message);
     }
   };
 
   return (
     <View style={styles.container}>
       <Formik
-        initialValues={{ nombre: '', email: '', contrasena: '', rol: 'participante' }}
-        validationSchema={RegisterSchema}
-        onSubmit={handleRegister}
+        initialValues={{ email: '', contrasena: '' }}
+        validationSchema={LoginSchema}
+        onSubmit={handleLogin}
       >
         {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
           <View>
-            <TextInput
-              label="Nombre"
-              onChangeText={handleChange('nombre')}
-              onBlur={handleBlur('nombre')}
-              value={values.nombre}
-              error={touched.nombre && !!errors.nombre}
-              style={styles.input}
-            />
-            {touched.nombre && errors.nombre && (
-              <Text style={styles.error}>{errors.nombre}</Text>
-            )}
-
             <TextInput
               label="Email"
               onChangeText={handleChange('email')}
@@ -65,7 +63,7 @@ export default function RegisterScreen() {
             )}
 
             <TextInput
-              label="Contrasena"
+              label="Contraseña"
               onChangeText={handleChange('contrasena')}
               onBlur={handleBlur('contrasena')}
               value={values.contrasena}
@@ -75,8 +73,16 @@ export default function RegisterScreen() {
             {touched.contrasena && errors.contrasena && (
               <Text style={styles.error}>{errors.contrasena}</Text>
             )}
+
             <Button mode="contained" onPress={handleSubmit} style={styles.button}>
-              <Text>Registrarse</Text>
+              <Text>Iniciar Sesión</Text>
+            </Button>
+
+            <Button 
+              style={styles.link} 
+              onPress={() => navigation.navigate('Register')}
+            >
+              <Text>¿No tienes cuenta? Regístrate</Text>
             </Button>
           </View>
         )}
@@ -101,5 +107,8 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 12,
     marginBottom: 5,
+  },
+  link: {
+    marginTop: 15,
   },
 });
