@@ -2,7 +2,7 @@ import { View, StyleSheet, Text } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { db } from '../services/firebaseConfig';
+import { db } from '../../config/firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 
@@ -79,7 +79,7 @@ export default function LoginScreen() {
               style={styles.link} 
               onPress={() => navigation.navigate('Register')}
             >
-              ¿No tienes cuenta? Regístrate
+              <Text>¿No tienes cuenta? Regístrate</Text>
             </Button>
           </View>
         )}

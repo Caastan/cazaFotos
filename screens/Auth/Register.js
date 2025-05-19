@@ -2,7 +2,7 @@ import { View, StyleSheet, Text } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { db } from '../services/firebaseConfig';
+import { db } from '../../config/firebaseConfig';
 import { collection, addDoc } from "firebase/firestore";
 
 // Esquema de validación
