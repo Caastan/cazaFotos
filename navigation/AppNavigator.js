@@ -1,28 +1,39 @@
-// En /navigation/AppNavigator.js
+// navigation/AppNavigator.js
+import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import HomeScreen from '../screens/Home';
-import LoginScreen from '../screens/Login';
-import RegisterScreen from '../screens/Register';
+import BottomTabNavigator from './BottomTabNavigator';
+import LoginScreen from '../screens/Auth/Login';
+import RegisterScreen from '../screens/Auth/Register';
 
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
-    <Stack.Navigator initialRouteName="Home">
+    <Stack.Navigator
+      initialRouteName="MainTabs"
+      screenOptions={{ headerShown: false }}
+    >
+      {/* Contenedor principal con pestañas */}
       <Stack.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ headerShown: false }}
+        name="MainTabs"
+        component={BottomTabNavigator}
       />
+      {/* Rutas de autenticación */}
       <Stack.Screen
         name="Login"
         component={LoginScreen}
-        options={{ title: 'Iniciar Sesión' }}
+        options={{
+          headerShown: true,
+          title: 'Iniciar Sesión',
+        }}
       />
       <Stack.Screen
         name="Register"
         component={RegisterScreen}
-        options={{ title: 'Registro' }}
+        options={{
+          headerShown: true,
+          title: 'Registro',
+        }}
       />
     </Stack.Navigator>
   );
