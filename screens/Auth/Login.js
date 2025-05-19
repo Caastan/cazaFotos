@@ -31,7 +31,10 @@ export default function LoginScreen() {
       } else {
         const userData = querySnapshot.docs[0].data();
         alert(`¡Bienvenido, ${userData.nombre}!`);
-        navigation.navigate('Home'); // Redirige a la pantalla principal
+        navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
       }
     } catch (error) {
       alert('Error al iniciar sesión: ' + error.message);

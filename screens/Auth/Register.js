@@ -4,6 +4,7 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { db } from '../../config/firebaseConfig';
 import { collection, addDoc } from "firebase/firestore";
+import { useNavigation } from '@react-navigation/native';
 
 // Esquema de validación
 const RegisterSchema = Yup.object().shape({
@@ -16,6 +17,7 @@ const RegisterSchema = Yup.object().shape({
 });
 
 export default function RegisterScreen() {
+  const navigation = useNavigation();
   const handleRegister = async (values) => {
     try {
       // Guardar en Firestore
@@ -26,6 +28,10 @@ export default function RegisterScreen() {
         rol: values.rol,
       });
       alert("¡Registro exitoso!");
+      navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs' }],
+       });
     } catch (error) {
       alert("Error al registrar: " + error.message);
     }
