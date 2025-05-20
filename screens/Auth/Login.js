@@ -1,5 +1,7 @@
 import { View, StyleSheet, Text } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
+import { useContext } from 'react';
+import { AuthContext } from '../../contexts/AuthContext';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { db } from '../../config/firebaseConfig';
@@ -14,32 +16,24 @@ const LoginSchema = Yup.object().shape({
 
 export default function LoginScreen() {
   const navigation = useNavigation();
+  const { signIn } = useContext(AuthContext);
 
   const handleLogin = async (values) => {
-    try {
-      // Consultar usuarios en Firestore
-      const q = query(
-        collection(db, 'usuarios'),
-        where('email', '==', values.email),
-        where('contrasena', '==', values.contrasena)
-      );
+  const q = query(
+    collection(db, 'usuarios'),
+    where('email', '==', values.email),
+    where('contrasena', '==', values.contrasena)
+  );
+  const snap = await getDocs(q);
 
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        alert('Usuario o contraseña incorrectos');
-      } else {
-        const userData = querySnapshot.docs[0].data();
-        alert(`¡Bienvenido, ${userData.nombre}!`);
-        navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
-      }
-    } catch (error) {
-      alert('Error al iniciar sesión: ' + error.message);
-    }
-  };
+  if (snap.empty) return alert('Usuario o contraseña incorrectos');
+
+  const docSnap   = snap.docs[0];
+  const userData  = { id: docSnap.id, ...docSnap.data() }; // 👈 añadimos id
+
+  signIn(userData);   // guarda {id, nombre, email, …}
+  navigation.reset({ index: 0, routes:[{name:'MainTabs'}] });
+};
 
   return (
     <View style={styles.container}>
