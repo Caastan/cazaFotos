@@ -2,51 +2,61 @@ import { View, StyleSheet, Text } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { db } from '../services/firebaseConfig';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebaseConfig';
+import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from '@react-navigation/native';
+import { AuthContext } from '../../contexts/AuthContext';
+import { useContext } from 'react';
 
 // Esquema de validación
-const LoginSchema = Yup.object().shape({
+const RegisterSchema = Yup.object().shape({
+  nombre: Yup.string().required('Nombre obligatorio'),
   email: Yup.string().email('Email inválido').required('Email obligatorio'),
-  contrasena: Yup.string().required('Contraseña obligatoria'),
+  contrasena: Yup.string()
+    .min(6, 'Mínimo 6 caracteres')
+    .required('Contraseña obligatoria'),
+  rol: Yup.string().required('Rol obligatorio'),
 });
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
   const navigation = useNavigation();
+  const { signIn } = useContext(AuthContext);
 
-  const handleLogin = async (values) => {
-    try {
-      // Consultar usuarios en Firestore
-      const q = query(
-        collection(db, 'usuarios'),
-        where('email', '==', values.email),
-        where('contrasena', '==', values.contrasena)
-      );
+  const handleRegister = async (values) => {
+  const docRef = await addDoc(collection(db,'usuarios'), {
+    nombre: values.nombre,
+    email : values.email,
+    contrasena: values.contrasena,
+    rol  : values.rol,
+  });
 
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        alert('Usuario o contraseña incorrectos');
-      } else {
-        const userData = querySnapshot.docs[0].data();
-        alert(`¡Bienvenido, ${userData.nombre}!`);
-        navigation.navigate('Home'); // Redirige a la pantalla principal
-      }
-    } catch (error) {
-      alert('Error al iniciar sesión: ' + error.message);
-    }
-  };
+  // objeto completo con id
+  signIn({ id: docRef.id, ...values });
+
+  navigation.reset({ index:0, routes:[{name:'MainTabs'}] });
+};
 
   return (
     <View style={styles.container}>
       <Formik
-        initialValues={{ email: '', contrasena: '' }}
-        validationSchema={LoginSchema}
-        onSubmit={handleLogin}
+        initialValues={{ nombre: '', email: '', contrasena: '', rol: 'participante' }}
+        validationSchema={RegisterSchema}
+        onSubmit={handleRegister}
       >
         {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
           <View>
+            <TextInput
+              label="Nombre"
+              onChangeText={handleChange('nombre')}
+              onBlur={handleBlur('nombre')}
+              value={values.nombre}
+              error={touched.nombre && !!errors.nombre}
+              style={styles.input}
+            />
+            {touched.nombre && errors.nombre && (
+              <Text style={styles.error}>{errors.nombre}</Text>
+            )}
+
             <TextInput
               label="Email"
               onChangeText={handleChange('email')}
@@ -60,7 +70,7 @@ export default function LoginScreen() {
             )}
 
             <TextInput
-              label="Contraseña"
+              label="Contrasena"
               onChangeText={handleChange('contrasena')}
               onBlur={handleBlur('contrasena')}
               value={values.contrasena}
@@ -70,16 +80,8 @@ export default function LoginScreen() {
             {touched.contrasena && errors.contrasena && (
               <Text style={styles.error}>{errors.contrasena}</Text>
             )}
-
             <Button mode="contained" onPress={handleSubmit} style={styles.button}>
-              <Text>Iniciar Sesión</Text>
-            </Button>
-
-            <Button 
-              style={styles.link} 
-              onPress={() => navigation.navigate('Register')}
-            >
-              ¿No tienes cuenta? Regístrate
+              <Text>Registrarse</Text>
             </Button>
           </View>
         )}
@@ -104,8 +106,5 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 12,
     marginBottom: 5,
-  },
-  link: {
-    marginTop: 15,
   },
 });
