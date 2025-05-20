@@ -1,25 +1,27 @@
-// ProfileScreen.js  (solo se muestra la parte relevante)
+// /screens/Profile.js
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, Alert, Platform } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { AuthContext } from '../contexts/AuthContext';
 import { db, storage } from '../config/firebaseConfig';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+/* Enum compatible con SDK 48 y 49+ */
+const IMAGE_ENUM =
+  ImagePicker?.MediaType?.Images ||             // SDK 49+
+  ImagePicker?.MediaTypeOptions?.Images;        // SDK ≤ 48
 
 export default function ProfileScreen() {
   const { user, signOut, signIn } = useContext(AuthContext);
 
   const [uploading, setUploading] = useState(false);
   const [postsCount, setPostsCount] = useState(0);
-  const IMAGE_ENUM =
-    ImagePicker?.MediaType?.Images ||           
-    ImagePicker?.MediaTypeOptions?.Images;      
-  /* ---------------------------------- PUBLICACIONES --------------------------------- */
+
+  /* ---------- Nº de publicaciones ---------- */
   useEffect(() => {
     if (!user?.id) return;
-
     (async () => {
       try {
         const q = query(collection(db, 'fotos'), where('userId', '==', user.id));
@@ -31,59 +33,58 @@ export default function ProfileScreen() {
     })();
   }, [user]);
 
-  /* -------------------------- SUBIDA DEL AVATAR-------------------------- */
-const pickImage = async () => {
-  /* 1. permiso */
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    Alert.alert('Permiso denegado');
-    return;
-  }
+  /* ------------ Elegir y subir avatar ------------- */
+  const pickImage = async () => {
+    /* permiso */
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      return Alert.alert('Permiso denegado', 'Necesitamos acceder a tu galería');
+    }
 
-  /* 2. selector */
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: IMAGE_ENUM,        
-    allowsEditing: true,
-    quality: 0.8,
-  });
+    /* selector */
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: IMAGE_ENUM,
+      allowsEditing: true,
+      quality: 0.8,
+    });
 
-  if (!result) {                                //
-    Alert.alert(
-      'Sin galería',
-      'Tu dispositivo/emulador no tiene app de galería o no contiene fotos.'
+    if (!result || result.canceled || result.cancelled) return;
+
+    /* subida */
+    try {
+      if (!user?.id) throw new Error('Usuario no válido');
+      setUploading(true);
+
+      const uri  = result.assets[0].uri;
+      const blob = await (await fetch(uri)).blob();
+      const path = `avatars/${user.id}_${Date.now()}.jpg`;
+
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+
+      await updateDoc(doc(db, 'usuarios', user.id), { photoURL: url });
+      signIn({ ...user, photoURL: url });      // refresca contexto
+
+      Alert.alert('¡Foto actualizada!');
+    } catch (e) {
+      console.log('❌ Error al subir', e);
+      Alert.alert('Error', e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /* --- Mientras cambia de stack tras cerrar sesión --- */
+  if (!user) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
     );
-    return;
   }
 
-
-  /* 3. Subir a Storage ---------------------------------------------------- */
-  try {
-    if (!user?.id) throw new Error('Usuario no válido');
-
-    setUploading(true);
-
-    const uri   = result.assets[0].uri;
-    const blob  = await (await fetch(uri)).blob();
-    const path  = `avatars/${user.id}_${Date.now()}.jpg`;
-
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, blob);
-    const url = await getDownloadURL(storageRef);
-
-    await updateDoc(doc(db, 'usuarios', user.id), { photoURL: url });
-    signIn({ ...user, photoURL: url }); // <──  IMPORTANTE tener signIn en el contexto
-
-    Alert.alert('¡Foto actualizada! 🎉');
-  } catch (e) {
-    console.log('❌ Error al subir', e);
-    Alert.alert('Error', e.message);
-  } finally {
-    setUploading(false);
-  }
-};
-  if (!user) return <Text>Debes iniciar sesión.</Text>;
-
-  /* ------------------------------- UI render -------------------------------- */
+  /* ---------------- UI ---------------- */
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -93,7 +94,7 @@ const pickImage = async () => {
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
               <Text style={styles.avatarInitial}>
-                {user.nombre?.charAt(0).toUpperCase()}
+                {user.nombre?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
           )}
@@ -131,9 +132,11 @@ const pickImage = async () => {
   );
 }
 
-/* ------------------------------- Estilos ----------------------------------- */
+/* ---------------- Estilos ---------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fafafa' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   header: {
     alignItems: 'center',
     paddingVertical: 30,
@@ -144,8 +147,10 @@ const styles = StyleSheet.create({
   avatar: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#eee' },
   avatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },
   avatarInitial: { fontSize: 48, color: '#555' },
+
   name: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
   email: { fontSize: 14, color: '#888' },
+
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -157,6 +162,7 @@ const styles = StyleSheet.create({
   statBox: { alignItems: 'center' },
   statNumber: { fontSize: 20, fontWeight: 'bold' },
   statLabel: { fontSize: 13, color: '#555' },
+
   btnRow: { padding: 20 },
   btn: { marginVertical: 6 },
 });
