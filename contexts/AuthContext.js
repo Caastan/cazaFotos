@@ -1,17 +1,16 @@
-// En /contexts/AuthContext.js
-import React, { createContext, useEffect, useState } from 'react';
-import { app } from '../config/firebaseConfig';
-import { onAuthStateChanged } from 'firebase/auth';
+import React, { createContext, useState } from 'react';
 
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  
+const [user, setUser] = useState(null);
 
-  return (
-    <AuthContext.Provider value={{ user }}>
-      {children}
-    </AuthContext.Provider>
-  );
+const signIn = (u) => setUser(u);
+const signOut = () => setUser(null);
+
+return (
+<AuthContext.Provider value={{ user, signIn, signOut }}>
+{children}
+</AuthContext.Provider>
+);
 }

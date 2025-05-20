@@ -5,6 +5,8 @@ import * as Yup from 'yup';
 import { db } from '../../config/firebaseConfig';
 import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from '@react-navigation/native';
+import { AuthContext } from '../../contexts/AuthContext';
+import { useContext } from 'react';
 
 // Esquema de validación
 const RegisterSchema = Yup.object().shape({
@@ -18,24 +20,21 @@ const RegisterSchema = Yup.object().shape({
 
 export default function RegisterScreen() {
   const navigation = useNavigation();
+  const { signIn } = useContext(AuthContext);
+
   const handleRegister = async (values) => {
-    try {
-      // Guardar en Firestore
-      await addDoc(collection(db, "usuarios"), {
-        nombre: values.nombre,
-        email: values.email,
-        contrasena: values.contrasena, // ⚠️ En la práctica NUNCA guardes contraseñas en Firestore
-        rol: values.rol,
-      });
-      alert("¡Registro exitoso!");
-      navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs' }],
-       });
-    } catch (error) {
-      alert("Error al registrar: " + error.message);
-    }
-  };
+  const docRef = await addDoc(collection(db,'usuarios'), {
+    nombre: values.nombre,
+    email : values.email,
+    contrasena: values.contrasena,
+    rol  : values.rol,
+  });
+
+  // objeto completo con id
+  signIn({ id: docRef.id, ...values });
+
+  navigation.reset({ index:0, routes:[{name:'MainTabs'}] });
+};
 
   return (
     <View style={styles.container}>
