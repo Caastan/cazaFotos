@@ -19,21 +19,18 @@ export default function LoginScreen() {
   const { signIn } = useContext(AuthContext);
 
   const handleLogin = async (values) => {
-  const q = query(
-    collection(db, 'usuarios'),
-    where('email', '==', values.email),
-    where('contrasena', '==', values.contrasena)
-  );
-  const snap = await getDocs(q);
+    const q = query(
+      collection(db,'usuarios'),
+      where('email','==',values.email),
+      where('contrasena','==',values.contrasena)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return alert('Usuario o contraseña incorrectos');
 
-  if (snap.empty) return alert('Usuario o contraseña incorrectos');
-
-  const docSnap   = snap.docs[0];
-  const userData  = { id: docSnap.id, ...docSnap.data() }; // 👈 añadimos id
-
-  signIn(userData);   // guarda {id, nombre, email, …}
-  navigation.reset({ index: 0, routes:[{name:'MainTabs'}] });
-};
+    const docSnap  = snap.docs[0];
+    const userData = { id: docSnap.id, ...docSnap.data() };
+    await signIn(userData);          // ← guarda en contexto + storage
+  };
 
   return (
     <View style={styles.container}>
@@ -69,14 +66,15 @@ export default function LoginScreen() {
             )}
 
             <Button mode="contained" onPress={handleSubmit} style={styles.button}>
-              <Text>Iniciar Sesión</Text>
+              Iniciar Sesión
             </Button>
 
-            <Button 
-              style={styles.link} 
-              onPress={() => navigation.navigate('Register')}
-            >
-              <Text>¿No tienes cuenta? Regístrate</Text>
+            <Button onPress={() => navigation.navigate('Register')}>
+              ¿No tienes cuenta? Regístrate
+            </Button>
+
+            <Button onPress={() => navigation.navigate('ForgotPassword')}>
+              ¿Has olvidado la contraseña?
             </Button>
           </View>
         )}

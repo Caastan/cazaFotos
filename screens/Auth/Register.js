@@ -31,7 +31,7 @@ export default function RegisterScreen() {
   });
 
   // objeto completo con id
-  signIn({ id: docRef.id, ...values });
+  await signIn({ id: docRef.id, ...values });
 
   navigation.reset({ index:0, routes:[{name:'MainTabs'}] });
 };
