@@ -2,9 +2,11 @@ import React, { useContext, useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { AuthContext } from '../../contexts/AuthContext';
-import { db } from '../../config/firebaseConfig';
+import { db, storage } from '../../config/firebaseConfig';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ContestDetailScreen(){
   const { params:{contest} } = useRoute();
@@ -33,6 +35,37 @@ export default function ContestDetailScreen(){
     }catch(e){Alert.alert('Error',e.message);}
   };
 
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      try {
+        const uri = result.assets[0].uri;
+        const blob = await (await fetch(uri)).blob();
+        const path = `fotos/${contest.id}_${user.id}_${Date.now()}.jpg`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, blob);
+        const url = await getDownloadURL(storageRef);
+        await addDoc(
+          collection(db, 'concursos', contest.id, 'fotos'),
+          {
+            url,
+            userId: user.id,
+            fecha: Timestamp.now(),
+            votos: 0,
+          }
+        );
+        Alert.alert('Foto subida correctamente');
+      } catch (error) {
+        Alert.alert('Error al subir la foto', error.message);
+      }
+    }
+  };
+
   return(
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{contest.titulo}</Text>
@@ -56,6 +89,14 @@ export default function ContestDetailScreen(){
         style={{marginTop:10}}
         onPress={()=>navigation.navigate('Gallery',{contestId:contest.id})}>
         Ver galería
+      </Button>
+
+      <Button
+        mode="contained"
+        style={{ marginTop: 10 }}
+        onPress={handlePickImage}
+      >
+        Subir Foto
       </Button>
     </ScrollView>
   );
