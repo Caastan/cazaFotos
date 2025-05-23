@@ -5,7 +5,7 @@ import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { AuthContext } from '../contexts/AuthContext';
 import { db, storage } from '../config/firebaseConfig';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 /* Enum compatible con SDK 48 y 49+ */
@@ -24,7 +24,10 @@ export default function ProfileScreen() {
     if (!user?.id) return;
     (async () => {
       try {
-        const q = query(collection(db, 'fotos'), where('userId', '==', user.id));
+          const q = query(
+          collectionGroup(db, 'fotos'),          // 🔁 ahora busca en TODAS
+          where('userId', '==', user.id)
+          );
         const snap = await getDocs(q);
         setPostsCount(snap.size);
       } catch (e) {
