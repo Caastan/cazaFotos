@@ -2,6 +2,7 @@
 import React, { createContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../lib/supabaseClients';
+import { supabase } from '../config/supabase';
 
 export const AuthContext = createContext();
 
@@ -59,7 +60,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signIn = async ({ email, password }) => {
-    const { data, error } = await auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     // tras login, traemos perfil y guardamos
     const profile  = await fetchProfile(data.user.id);
@@ -69,7 +70,39 @@ export function AuthProvider({ children }) {
     return fullUser;
   };
 
-  // register y resetPassword igual que antes, no afectan al avatar
+   const register = async ({ nombre, email, password, rol }) => {
+    // 1) Crear usuario en Auth
+    const { data, error: authError } = await auth.signUp({ email, password });
+    if (authError) throw authError;
+
+    // 2) Insertar perfil en la tabla usuarios
+    const user = data.user;
+    const { error: dbError } = await db
+      .from('usuarios')
+      .insert([{ id: user.id, email, display_name: nombre, rol }]);
+    if (dbError) throw dbError;
+
+    // 3) Opcional: cargar perfil completo y persistir
+    const profile = await db
+      .from('usuarios')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+      .then(res => {
+        if (res.error) throw res.error;
+        return res.data;
+      });
+    const fullUser = { ...user, ...profile };
+    setUser(fullUser);
+    await AsyncStorage.setItem('@rf_user', JSON.stringify(fullUser));
+
+    return fullUser;
+  };
+
+  const resetPassword = async (email) => {
+    const { error } = await auth.requestPasswordRecovery(email);
+    if (error) throw error;
+  };
 
   const signOut = async () => {
     await auth.signOut();
@@ -79,7 +112,7 @@ export function AuthProvider({ children }) {
 
   if (loading) return null;
   return (
-    <AuthContext.Provider value={{ user, signIn, signOut, /*…*/ }}>
+    <AuthContext.Provider value={{ user, signIn, signOut, register, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
