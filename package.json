@@ -17,6 +17,7 @@
     "@supabase/gotrue-js": "^2.70.0",
     "@supabase/postgrest-js": "^1.19.4",
     "@supabase/storage-js": "^2.7.3",
+    "@supabase/supabase-js": "^2.49.8",
     "expo": "~53.0.9",
     "expo-image-picker": "^16.1.4",
     "expo-status-bar": "~2.2.3",
@@ -37,7 +38,8 @@
     "yup": "^1.6.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "react-native-dotenv": "^3.4.11"
   },
   "private": true
 }

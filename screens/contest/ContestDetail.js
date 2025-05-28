@@ -1,42 +1,63 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Alert, View } from 'react-native';
-import { Text, Button } from 'react-native-paper';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import React, { useEffect, useState, useContext, useLayoutEffect } from 'react';
+import { ScrollView, StyleSheet, View, Alert } from 'react-native';
+import { Text, Button, IconButton } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { supabase } from '../../config/supabase';
 import { AuthContext } from '../../contexts/AuthContext';
-import { db, storage } from '../../lib/supabaseClients';
 
 export default function ContestDetailScreen() {
-  const { params:{ contest } } = useRoute();
-  const navigation            = useNavigation();
-  const { user }              = useContext(AuthContext);
-  const [alreadyJoined, setAlreadyJoined] = useState(false);
+  const { params: { contest } } = useRoute();
+  const navigation = useNavigation();
+  const { user } = useContext(AuthContext);
 
+  const [membershipRequest, setMembershipRequest] = useState(null);
+
+  // Add settings icon for admins
+  useLayoutEffect(() => {
+    if (user?.rol === 'admin') {
+      navigation.setOptions({
+        headerRight: () => (
+          <IconButton
+            icon="cog"
+            onPress={() => navigation.navigate('ContestSettings', { contestId: contest.id })}
+          />
+        ),
+      });
+    }
+  }, [navigation, user, contest]);
+
+  // Fetch membership request status for participant
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await db
-        .from('miembros')
-        .select('*')
+      const { data, error } = await supabase
+        .from('participation_requests')
+        .select('status')
         .eq('concurso_id', contest.id)
-        .eq('user_id', user.id);
-      setAlreadyJoined(data.length > 0);
+        .eq('user_id', user.id)
+        .single();
+      if (!error) setMembershipRequest(data?.status || null);
     })();
-  }, [user]);
+  }, [user, contest.id]);
 
-  const handleJoin = async () => {
-    if (!user) return Alert.alert('Inicia sesión para inscribirte');
-    const { error } = await db.from('miembros').insert([{
-      concurso_id: contest.id,
-      user_id:     user.id,
-      rol:         'participante',
-    }]);
-    if (error) return Alert.alert('Error', error.message);
-    Alert.alert('Inscrito correctamente');
-    setAlreadyJoined(true);
+  const handleRequestParticipation = async () => {
+    try {
+      const { error } = await supabase
+        .from('participation_requests')
+        .insert([{ concurso_id: contest.id, user_id: user.id }]);
+      if (error) throw error;
+      setMembershipRequest('pending');
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    }
   };
 
   const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
+    }
     const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -44,56 +65,126 @@ export default function ContestDetailScreen() {
     });
     if (canceled) return;
     try {
-      const blob = await fetch(assets[0].uri).then(r => r.blob());
+      const { uri } = assets[0];
       const filename = `${contest.id}/${user.id}_${Date.now()}.jpg`;
-
-      await storage.upload(filename, blob, { upsert: false });
-      const { publicUrl } = await storage.getPublicUrl(filename);
-
-      const { error } = await db.from('fotos').insert([{
-        concurso_id: contest.id,
-        user_id:     user.id,
-        ruta:        filename,
-        url:         publicUrl,
-        votos:       0,
-        fecha:       new Date().toISOString(),
-      }]);
+      const { error: uploadError } = await supabase
+        .storage
+        .from('photos')
+        .upload(filename, await fetch(uri).then(r => r.blob()));
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = await supabase
+        .storage
+        .from('photos')
+        .getPublicUrl(filename);
+      const { error } = await supabase
+        .from('photo_requests')
+        .insert([{ concurso_id: contest.id, user_id: user.id, url: publicUrl, status: 'pending' }]);
       if (error) throw error;
-
-      Alert.alert('Foto subida correctamente');
+      Alert.alert('Foto enviada', 'Tu foto está pendiente de revisión.');
     } catch (e) {
-      Alert.alert('Error al subir la foto', e.message);
+      Alert.alert('Error', e.message);
     }
   };
 
+  if (!user) return null;
+
+  // Admin view
+  if (user.rol === 'admin') {
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>{contest.titulo}</Text>
+        <Text style={styles.detail}>Descripción: {contest.descripcion}</Text>
+        <Text style={styles.detail}>Tema: {contest.tema}</Text>
+        <Text style={styles.detail}>Premios: {contest.premios}</Text>
+        <Text style={styles.detail}>
+          Plazo subida: {new Date(contest.fecha_fin_subida).toLocaleString()}
+        </Text>
+        <Text style={styles.detail}>
+          Fecha veredicto: {new Date(contest.fecha_veredicto).toLocaleDateString()}
+        </Text>
+        <View style={styles.buttonRow}>
+          <Button
+            mode="contained"
+            onPress={() => navigation.navigate('ParticipationRequests', { contestId: contest.id })}
+            style={styles.button}
+          >
+            Ver Solicitudes
+          </Button>
+          <Button
+            mode="contained"
+            onPress={() => navigation.navigate('PhotoRequests', { contestId: contest.id })}
+            style={styles.button}
+          >
+            Solicitudes de Fotos
+          </Button>
+          <Button
+            mode="contained"
+            onPress={() => navigation.navigate('AllGalleries', { contestId: contest.id })}
+            style={styles.button}
+          >
+            Ver Galerías
+          </Button>
+          <Button
+            mode="contained"
+            onPress={() => navigation.navigate('ContestStats', { contestId: contest.id })}
+            style={styles.button}
+          >
+            Ver Estadísticas
+          </Button>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Participant view
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text variant="headlineMedium" style={styles.title}>{contest.titulo}</Text>
-      <Text>{contest.descripcion}</Text>
-      <View style={styles.box}>
-        <Text>Fecha inicio: {new Date(contest.fecha_inicio).toLocaleDateString()}</Text>
-        <Text>Plazo de subida: {new Date(contest.fecha_fin_subida).toLocaleDateString()}</Text>
-        <Text>Veredicto: {new Date(contest.fecha_veredicto).toLocaleDateString()}</Text>
-        <Text>Premios: {contest.premios}</Text>
-        <Text>Tema: {contest.tema}</Text>
+      <Text style={styles.title}>{contest.titulo}</Text>
+      <Text style={styles.detail}>Descripción: {contest.descripcion}</Text>
+      <View style={styles.buttonRow}>
+        {membershipRequest === null && (
+          <Button
+            mode="contained"
+            onPress={handleRequestParticipation}
+            style={styles.button}
+          >
+            ¡Participar!
+          </Button>
+        )}
+        {membershipRequest === 'pending' && (
+          <Text style={styles.status}>Solicitud pendiente...</Text>
+        )}
+        {membershipRequest === 'rejected' && (
+          <Text style={styles.status}>Solicitud rechazada</Text>
+        )}
+        {membershipRequest === 'admitted' && (
+          <>          
+            <Button
+              mode="contained"
+              onPress={handlePickImage}
+              style={styles.button}
+            >
+              Subir Foto
+            </Button>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('Gallery', { contestId: contest.id })}
+              style={styles.button}
+            >
+              Ver Galería
+            </Button>
+          </>
+        )}
       </View>
-      {!alreadyJoined && (
-        <Button mode="contained" onPress={handleJoin} style={{ marginTop:20 }}>
-          ¡Participar!
-        </Button>
-      )}
-      <Button style={{ marginTop:10 }} onPress={()=>navigation.navigate('Gallery',{ contestId: contest.id })}>
-        Ver galería
-      </Button>
-      <Button mode="contained" style={{ marginTop:10 }} onPress={handlePickImage}>
-        Subir Foto
-      </Button>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:{ padding:20 },
-  title:    { marginBottom:10 },
-  box:      { marginTop:15, backgroundColor:'#eee', padding:10, borderRadius:6 }
+  container: { padding: 20 },
+  title:     { fontSize: 24, fontWeight: 'bold', marginBottom: 10 },
+  detail:    { marginBottom: 6 },
+  buttonRow: { marginTop: 20 },
+  button:    { marginBottom: 12 },
+  status:    { marginVertical: 12, fontSize: 16, textAlign: 'center' },
 });

@@ -3,7 +3,7 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { db } from '../../lib/supabaseClients';
+import { supabase } from '../../config/supabase';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 
@@ -22,25 +22,27 @@ export default function CreateContestScreen() {
   if (!user) return null;
 
   const handleCreate = async (values) => {
-    try {
-      const { error } = await db.from('concursos').insert([{
+  try {
+    const { data, error } = await supabase
+      .from('concursos')
+      .insert([{
         titulo:           values.titulo,
         descripcion:      values.descripcion,
         tema:             values.tema,
         premios:          values.premios,
         fecha_inicio:     new Date().toISOString(),
-        fecha_fin_subida: values.fechaFinSubida,
-        fecha_veredicto:  values.fechaVeredicto,
+        fecha_fin_subida: new Date(values.fechaFinSubida).toISOString(),
+        fecha_veredicto:  new Date(values.fechaVeredicto).toISOString(),
         created_by:       user.id,
       }]);
-      if (error) throw error;
-      Alert.alert('Concurso creado');
-      navigation.goBack();
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    }
-  };
 
+    if (error) throw error;
+    Alert.alert('Concurso creado');
+    navigation.goBack();
+  } catch (e) {
+    Alert.alert('Error', e.message);
+  }
+};
   return (
     <View style={styles.container}>
       <Formik

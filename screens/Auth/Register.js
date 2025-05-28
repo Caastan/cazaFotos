@@ -21,8 +21,8 @@ export default function RegisterScreen() {
   const handleRegister = async (values) => {
     try {
       await register(values);
-+     // Al inscribirnos, volvemos a la pantalla de Login
-+     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+     // Al inscribirnos, volvemos a la pantalla de Login
+     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     } catch (e) {
       Alert.alert('Error', e.message);
     }
