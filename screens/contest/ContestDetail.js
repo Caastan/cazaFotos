@@ -4,7 +4,9 @@ import { Text, Button, IconButton } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { supabase } from '../../config/supabase';
+import Constants        from 'expo-constants';
 import { AuthContext } from '../../contexts/AuthContext';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function ContestDetailScreen() {
   const { params: { contest } } = useRoute();
@@ -53,38 +55,63 @@ export default function ContestDetailScreen() {
     }
   };
 
-  const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
-    }
-    const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (canceled) return;
-    try {
-      const { uri } = assets[0];
-      const filename = `${contest.id}/${user.id}_${Date.now()}.jpg`;
-      const { error: uploadError } = await supabase
-        .storage
-        .from('photos')
-        .upload(filename, await fetch(uri).then(r => r.blob()));
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = await supabase
-        .storage
-        .from('photos')
-        .getPublicUrl(filename);
-      const { error } = await supabase
-        .from('photo_requests')
-        .insert([{ concurso_id: contest.id, user_id: user.id, url: publicUrl, status: 'pending' }]);
-      if (error) throw error;
-      Alert.alert('Foto enviada', 'Tu foto está pendiente de revisión.');
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    }
+async function handlePickImage() {
+  // 1) permisos
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') {
+    return Alert.alert('Permiso denegado');
+  }
+
+  // 2) picker + compresión
+  const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes:   ImagePicker.MediaTypeOptions.Images,
+    allowsEditing:true,
+    quality:      1,
+  });
+  if (canceled) return;
+
+  const manip = await ImageManipulator.manipulateAsync(
+    assets[0].uri,
+    [{ resize: { width: 1024 } }],
+    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+  );
+  const uri = manip.uri;
+
+  // 3) nombre + subir al bucket
+  const filename = `${contest.id}/${user.id}_${Date.now()}.jpg`;
+  const { error: uploadError } = await supabase
+    .storage
+    .from('photos')
+    .upload(filename, uri, { cacheControl:'3600', upsert:false });
+  if (uploadError) {
+    return Alert.alert('Error al subir imagen', uploadError.message);
+  }
+
+  // 4) URL pública
+  const { data: { publicUrl }, error: urlError } = supabase
+    .storage
+    .from('photos')
+    .getPublicUrl(filename);
+  if (urlError) {
+    return Alert.alert('Error al obtener URL', urlError.message);
+  }
+
+  // 5) INSERT en photo_requests (pollícala en la BD)
+  const payload = {
+    concurso_id: contest.id,
+    user_id:     user.id,
+    ruta:        filename,
+    url:         publicUrl,
   };
+  const { error: prError } = await supabase
+    .from('photo_requests')
+    .insert([payload]);
+  if (prError) {
+    return Alert.alert('Error al registrar foto', prError.message);
+  }
+
+  Alert.alert('Foto pendiente de revisión');
+};
 
   if (!user) return null;
 
