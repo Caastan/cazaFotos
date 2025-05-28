@@ -1,113 +1,128 @@
-// /screens/Profile.js
+// src/screens/ProfileScreen.js
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+} from 'react-native';
 import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
 import { AuthContext } from '../contexts/AuthContext';
-import { db, storage } from '../config/firebaseConfig';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-/* Enum compatible con SDK 48 y 49+ */
-const IMAGE_ENUM =
-  ImagePicker?.MediaType?.Images ||             // SDK 49+
-  ImagePicker?.MediaTypeOptions?.Images;        // SDK ≤ 48
+import { storage, db } from '../lib/supabaseClients';
 
 export default function ProfileScreen() {
-  const { user, signOut, signIn } = useContext(AuthContext);
-
-  const [uploading, setUploading] = useState(false);
+  const { user, signIn, signOut } = useContext(AuthContext);
+  const [uploading, setUploading]   = useState(false);
   const [postsCount, setPostsCount] = useState(0);
 
-  /* ---------- Nº de publicaciones ---------- */
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
-      try {
-        const q = query(collection(db, 'fotos'), where('userId', '==', user.id));
-        const snap = await getDocs(q);
-        setPostsCount(snap.size);
-      } catch (e) {
-        console.log('❌ fetchPosts', e);
-      }
+      const { count, error } = await db
+        .from('fotos')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      if (!error) setPostsCount(count);
     })();
   }, [user]);
 
-  /* ------------ Elegir y subir avatar ------------- */
   const pickImage = async () => {
-    /* permiso */
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const { status } =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      return Alert.alert('Permiso denegado', 'Necesitamos acceder a tu galería');
+      return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
     }
 
-    /* selector */
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: IMAGE_ENUM,
-      allowsEditing: true,
-      quality: 0.8,
+    const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes:   ImagePicker.MediaTypeOptions.Images,
+      allowsEditing:true,
+      quality:      0.8,
     });
+    if (canceled) return;
 
-    if (!result || result.canceled || result.cancelled) return;
-
-    /* subida */
+    setUploading(true);
     try {
-      if (!user?.id) throw new Error('Usuario no válido');
-      setUploading(true);
+      const { uri } = assets[0];
+      const filename = `${user.id}_${Date.now()}.jpg`;
 
-      const uri  = result.assets[0].uri;
-      const blob = await (await fetch(uri)).blob();
-      const path = `avatars/${user.id}_${Date.now()}.jpg`;
+      // Construimos el FormData sin usar blob()
+      const formData = new FormData();
+      formData.append('file', { uri, name: filename, type: 'image/jpeg' });
 
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, blob);
-      const url = await getDownloadURL(storageRef);
+      // Hacemos el POST directamente al endpoint de Storage
+      const res = await fetch(
+        `${Constants.expoConfig.extra.SUPABASE_URL}/storage/v1/object/avatars/${filename}`,
+        {
+          method: 'POST',
+          headers: {
+            apikey:        Constants.expoConfig.extra.SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${Constants.expoConfig.extra.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          body: formData,
+        }
+      );
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Error en subida: ${res.status} ${err}`);
+      }
 
-      await updateDoc(doc(db, 'usuarios', user.id), { photoURL: url });
-      signIn({ ...user, photoURL: url });      // refresca contexto
+      // Obtenemos la URL pública con el cliente ligero
+      const { data: { publicUrl }, error: urlError } = await storage
+        .from('avatars')
+        .getPublicUrl(filename);
+      if (urlError) throw urlError;
 
-      Alert.alert('¡Foto actualizada!');
+      // Actualizamos la tabla de usuarios
+      const { error: dbError } = await db
+        .from('usuarios')
+        .update({ photourl: publicUrl })
+        .eq('id', user.id);
+      if (dbError) throw dbError;
+
+      // Refrescamos el contexto y avisamos
+      signIn({ ...user, photourl: publicUrl });
+      Alert.alert('¡Avatar actualizado!');
     } catch (e) {
-      console.log('❌ Error al subir', e);
-      Alert.alert('Error', e.message);
+      Alert.alert('Error al subir avatar', e.message);
     } finally {
       setUploading(false);
     }
   };
 
-  /* --- Mientras cambia de stack tras cerrar sesión --- */
   if (!user) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <ActivityIndicator style={styles.center} />;
   }
 
-  /* ---------------- UI ---------------- */
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={pickImage}>
-          {user.photoURL ? (
-            <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+          {user.photourl ? (
+            <Image source={{ uri: user.photourl }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <View
+              style={[styles.avatar, styles.avatarPlaceholder]}
+            >
               <Text style={styles.avatarInitial}>
-                {user.nombre?.charAt(0).toUpperCase() || 'U'}
+                {user.display_name?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
           )}
           {uploading && (
-            <ActivityIndicator style={{ position: 'absolute', bottom: -10 }} />
+            <ActivityIndicator
+              style={{ position: 'absolute', bottom: -10 }}
+            />
           )}
         </TouchableOpacity>
 
-        <Text style={styles.name}>{user.nombre}</Text>
+        <Text style={styles.name}>{user.display_name}</Text>
         <Text style={styles.email}>{user.email}</Text>
       </View>
 
-      {/* Estadísticas */}
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
           <Text style={styles.statNumber}>{postsCount}</Text>
@@ -119,12 +134,20 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Botones */}
       <View style={styles.btnRow}>
-        <Button mode="outlined" onPress={pickImage} style={styles.btn}>
+        <Button
+          mode="outlined"
+          onPress={pickImage}
+          style={styles.btn}
+          disabled={uploading}
+        >
           Cambiar foto
         </Button>
-        <Button mode="contained-tonal" onPress={signOut} style={styles.btn}>
+        <Button
+          mode="contained-tonal"
+          onPress={signOut}
+          style={styles.btn}
+        >
           Cerrar sesión
         </Button>
       </View>
@@ -132,11 +155,9 @@ export default function ProfileScreen() {
   );
 }
 
-/* ---------------- Estilos ---------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fafafa' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
   header: {
     alignItems: 'center',
     paddingVertical: 30,
@@ -144,13 +165,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 2,
   },
-  avatar: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#eee' },
-  avatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },
-  avatarInitial: { fontSize: 48, color: '#555' },
-
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#eee',
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    fontSize: 48,
+    color: '#555',
+  },
   name: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
   email: { fontSize: 14, color: '#888' },
-
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -162,7 +192,6 @@ const styles = StyleSheet.create({
   statBox: { alignItems: 'center' },
   statNumber: { fontSize: 20, fontWeight: 'bold' },
   statLabel: { fontSize: 13, color: '#555' },
-
   btnRow: { padding: 20 },
   btn: { marginVertical: 6 },
 });
