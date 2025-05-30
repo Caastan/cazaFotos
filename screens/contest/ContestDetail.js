@@ -4,7 +4,8 @@ import { Text, Button, IconButton } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { supabase } from '../../config/supabase';
-import Constants        from 'expo-constants';
+import { storage, db } from '../../lib/supabaseClients';
+import Constants from 'expo-constants';
 import { AuthContext } from '../../contexts/AuthContext';
 import * as ImageManipulator from 'expo-image-manipulator';
 
@@ -55,14 +56,14 @@ export default function ContestDetailScreen() {
     }
   };
 
-async function handlePickImage() {
+ const handlePickImage = async () => {
   // 1) permisos
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') {
     return Alert.alert('Permiso denegado');
   }
 
-  // 2) picker + compresión
+  // 2) picker 
   const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
     mediaTypes:   ImagePicker.MediaTypeOptions.Images,
     allowsEditing:true,
@@ -70,31 +71,41 @@ async function handlePickImage() {
   });
   if (canceled) return;
 
-  const manip = await ImageManipulator.manipulateAsync(
-    assets[0].uri,
-    [{ resize: { width: 1024 } }],
-    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-  );
-  const uri = manip.uri;
-
+  try {
+  const uri  = assets[0].uri;
   // 3) nombre + subir al bucket
   const filename = `${contest.id}/${user.id}_${Date.now()}.jpg`;
-  const { error: uploadError } = await supabase
-    .storage
-    .from('photos')
-    .upload(filename, uri, { cacheControl:'3600', upsert:false });
-  if (uploadError) {
-    return Alert.alert('Error al subir imagen', uploadError.message);
-  }
+  // Construimos el FormData sin usar blob()
+  const formData = new FormData();
+  formData.append('file', { uri, name: filename, type: 'image/jpeg' });
 
+  // Hacemos el POST directamente al endpoint de Storage
+  const res = await fetch(
+  `${Constants.expoConfig.extra.SUPABASE_URL}/storage/v1/object/photos/${filename}`,
+    {
+      method: 'POST',
+      headers: {
+        apikey:        Constants.expoConfig.extra.SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${Constants.expoConfig.extra.SUPABASE_ANON_KEY}`,
+        'Content-Type': 'multipart/form-data',
+        },
+      body: formData,
+    }
+  );
+
+  console.log('Respuesta de subida:', res.status, res.ok);
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Error en subida: ${res.status} ${err}`);
+  }
+ 
   // 4) URL pública
-  const { data: { publicUrl }, error: urlError } = supabase
-    .storage
+  const { data: { publicUrl }, error: urlError } = await storage
     .from('photos')
     .getPublicUrl(filename);
-  if (urlError) {
-    return Alert.alert('Error al obtener URL', urlError.message);
-  }
+  if (urlError) { throw urlError;}
+
 
   // 5) INSERT en photo_requests (pollícala en la BD)
   const payload = {
@@ -106,11 +117,15 @@ async function handlePickImage() {
   const { error: prError } = await supabase
     .from('photo_requests')
     .insert([payload]);
+
   if (prError) {
     return Alert.alert('Error al registrar foto', prError.message);
   }
 
   Alert.alert('Foto pendiente de revisión');
+   } catch (e) {
+        Alert.alert('Error al subir avatar', e.message);
+  }
 };
 
   if (!user) return null;
