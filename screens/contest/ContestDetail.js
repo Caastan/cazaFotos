@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useContext, useLayoutEffect } from 'react';
 import { ScrollView, StyleSheet, View, Alert } from 'react-native';
-import { Text, Button, IconButton } from 'react-native-paper';
+import { Text, Button, IconButton, ProgressBar } from 'react-native-paper'; // <-- import ProgressBar
 import * as ImagePicker from 'expo-image-picker';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system'; // <-- import FileSystem
 import { supabase } from '../../config/supabase';
+import { storage, db } from '../../lib/supabaseClients';
+import Constants from 'expo-constants';
 import { AuthContext } from '../../contexts/AuthContext';
 
 export default function ContestDetailScreen() {
@@ -12,6 +15,8 @@ export default function ContestDetailScreen() {
   const { user } = useContext(AuthContext);
 
   const [membershipRequest, setMembershipRequest] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Add settings icon for admins
   useLayoutEffect(() => {
@@ -54,35 +59,121 @@ export default function ContestDetailScreen() {
   };
 
   const handlePickImage = async () => {
+    Alert.alert(
+      'Sube la foto con 1 MB máximo',
+      'Asegúrate de que la foto sea JPG o PNG',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Aceptar', onPress: pickImage },
+      ]
+    );
+  };
+
+  const pickImage = async () => {
+
+    // 1) permisos
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
+      return Alert.alert('Permiso denegado');
     }
+
+    // 2) picker
     const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 1,
     });
     if (canceled) return;
+
     try {
-      const { uri } = assets[0];
+      const uri = assets[0].uri;
+      // 2.1) chequear tamaño y formato
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      const sizeInBytes = fileInfo.size || 0;
+      const maxSize = 1 * 1024 * 1024; 
+      if (sizeInBytes > maxSize) {
+        return Alert.alert(
+          'Archivo demasiado grande',
+          'El archivo no puede pesar más de 1 MB'
+        );
+      }
+      const ext = uri.split('.').pop().toLowerCase();
+      if (!['jpg', 'jpeg', 'png'].includes(ext)) {
+        return Alert.alert(
+          'Formato no soportado',
+          'El archivo debe ser JPG o PNG'
+        );
+      }
+
+      // 3) nombre + subir al bucket
       const filename = `${contest.id}/${user.id}_${Date.now()}.jpg`;
-      const { error: uploadError } = await supabase
-        .storage
-        .from('photos')
-        .upload(filename, await fetch(uri).then(r => r.blob()));
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = await supabase
-        .storage
-        .from('photos')
-        .getPublicUrl(filename);
-      const { error } = await supabase
-        .from('photo_requests')
-        .insert([{ concurso_id: contest.id, user_id: user.id, url: publicUrl, status: 'pending' }]);
-      if (error) throw error;
-      Alert.alert('Foto enviada', 'Tu foto está pendiente de revisión.');
+      // Construimos el FormData sin usar blob()
+      const formData = new FormData();
+      formData.append('file', { uri, name: filename, type: 'image/jpeg' });
+
+      // reset estados
+      setUploading(true);
+      setUploadProgress(0);
+
+      // Hacemos la subida con XHR para progreso
+      const url = `${Constants.expoConfig.extra.SUPABASE_URL}/storage/v1/object/photos/${encodeURIComponent(filename)}`;
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.setRequestHeader('apikey', Constants.expoConfig.extra.SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('Authorization', `Bearer ${Constants.expoConfig.extra.SUPABASE_ANON_KEY}`);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress((event.loaded / event.total) / 2);
+        }
+      };
+
+      xhr.onload = async () => {
+        setUploading(false);
+        console.log('Respuesta de subida:', xhr.status, xhr.status === 200);
+        if (xhr.status !== 200) {
+          const err = xhr.responseText;
+          Alert.alert('Error al subir la foto', `Código: ${xhr.status}\n${err}`);
+          return;
+        }
+
+        try {
+          // 4) URL pública
+          const { data: { publicUrl }, error: urlError } = await storage
+            .from('photos')
+            .getPublicUrl(filename);
+          if (urlError) throw urlError;
+
+          // 5) INSERT en photo_requests (política en la BD)
+          const payload = {
+            concurso_id: contest.id,
+            user_id: user.id,
+            ruta: filename,
+            url: publicUrl,
+          };
+          const { error: prError } = await supabase
+            .from('photo_requests')
+            .insert([payload]);
+
+          if (prError) {
+            return Alert.alert('Error al registrar foto', prError.message);
+          }
+
+          Alert.alert('Foto pendiente de revisión');
+        } catch (e) {
+          Alert.alert('Error al subir la foto', e.message);
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploading(false);
+        Alert.alert('Error de red', 'No se pudo conectar para subir la imagen');
+      };
+
+      xhr.send(formData);
     } catch (e) {
-      Alert.alert('Error', e.message);
+      setUploading(false);
+      Alert.alert('Error al subir la foto', e.message);
     }
   };
 
@@ -158,14 +249,24 @@ export default function ContestDetailScreen() {
           <Text style={styles.status}>Solicitud rechazada</Text>
         )}
         {membershipRequest === 'admitted' && (
-          <>          
+          <>
             <Button
               mode="contained"
               onPress={handlePickImage}
               style={styles.button}
+              disabled={uploading}
             >
               Subir Foto
             </Button>
+
+            {/* ProgressBar mientras sube */}
+            {uploading && (
+              <View style={styles.progressContainer}>
+                <ProgressBar progress={uploadProgress} style={{ marginVertical: 8 }} />
+                <Text>{Math.round(uploadProgress * 100)}%</Text>
+              </View>
+            )}
+
             <Button
               mode="contained"
               onPress={() => navigation.navigate('Gallery', { contestId: contest.id })}
@@ -182,9 +283,13 @@ export default function ContestDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
-  title:     { fontSize: 24, fontWeight: 'bold', marginBottom: 10 },
-  detail:    { marginBottom: 6 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 10 },
+  detail: { marginBottom: 6 },
   buttonRow: { marginTop: 20 },
-  button:    { marginBottom: 12 },
-  status:    { marginVertical: 12, fontSize: 16, textAlign: 'center' },
+  button: { marginBottom: 12 },
+  status: { marginVertical: 12, fontSize: 16, textAlign: 'center' },
+  progressContainer: {
+    marginHorizontal: 20,
+    alignItems: 'center',
+  },
 });

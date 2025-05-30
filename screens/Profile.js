@@ -30,12 +30,14 @@ export default function ProfileScreen() {
   }, [user]);
 
   const pickImage = async () => {
+    // 1) permisos
     const { status } =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
     }
 
+    // 2) picker
     const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
       mediaTypes:   ImagePicker.MediaTypeOptions.Images,
       allowsEditing:true,
@@ -51,6 +53,7 @@ export default function ProfileScreen() {
       // Construimos el FormData sin usar blob()
       const formData = new FormData();
       formData.append('file', { uri, name: filename, type: 'image/jpeg' });
+      console.log(formData.get('file'));
 
       // Hacemos el POST directamente al endpoint de Storage
       const res = await fetch(
@@ -65,6 +68,8 @@ export default function ProfileScreen() {
           body: formData,
         }
       );
+    console.log('Respuesta de subida:', res.status, res.ok);
+
       if (!res.ok) {
         const err = await res.text();
         throw new Error(`Error en subida: ${res.status} ${err}`);
@@ -87,7 +92,7 @@ export default function ProfileScreen() {
       signIn({ ...user, photourl: publicUrl });
       Alert.alert('¡Avatar actualizado!');
     } catch (e) {
-      Alert.alert('Error al subir avatar', e.message);
+      Alert.alert('Error al subir la foto', e.message);
     } finally {
       setUploading(false);
     }
