@@ -1,11 +1,12 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
-import { Card, Text, ActivityIndicator } from 'react-native-paper';
+import { Card, Text, ActivityIndicator, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { db } from '../lib/supabaseClients';
 import { AuthContext } from '../contexts/AuthContext';
 
 export default function MyContests() {
+  const { colors, fonts } = useTheme();
   const { user } = useContext(AuthContext);
   const [adminContests, setAdminContests] = useState([]);
   const [participContests, setParticipContests] = useState([]);
@@ -26,8 +27,12 @@ export default function MyContests() {
         return;
       }
 
-      const adminIds = members.filter(m => m.rol === 'admin').map(m => m.concurso_id);
-      const partIds  = members.filter(m => m.rol !== 'admin').map(m => m.concurso_id);
+      const adminIds = members
+        .filter((m) => m.rol === 'admin')
+        .map((m) => m.concurso_id);
+      const partIds = members
+        .filter((m) => m.rol !== 'admin')
+        .map((m) => m.concurso_id);
 
       let adminData = [];
       if (adminIds.length) {
@@ -61,29 +66,57 @@ export default function MyContests() {
 
   const renderItem = ({ item }) => (
     <Card
-      style={styles.card}
-      onPress={() =>
-        navigation.navigate('ContestDetail', { contest: item })
-      }
+      style={[styles.card, { backgroundColor: colors.surface }]}
+      onPress={() => navigation.navigate('ContestDetail', { contest: item })}
     >
-      <Card.Title title={item.titulo} subtitle={`Tema: ${item.tema}`} />
-      <Card.Content>
-        <Text>
+      <Card.Title
+        title={item.titulo}
+        titleStyle={[
+          styles.cardTitle,
+          { color: colors.primary, fontFamily: fonts.titleMedium.fontFamily },
+        ]}
+        subtitle={`Tema: ${item.tema}`}
+        subtitleStyle={{
+          color: colors.placeholder,
+          fontFamily: fonts.bodyMedium.fontFamily,
+        }}
+      />
+      <Card.Content style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+        <Text
+          style={[
+            styles.infoText,
+            { color: colors.text, fontFamily: fonts.bodyMedium.fontFamily },
+          ]}
+        >
           Plazo subida: {new Date(item.fecha_fin_subida).toLocaleDateString()}
         </Text>
-        <Text>Premios: {item.premios}</Text>
+        <Text
+          style={[
+            styles.infoText,
+            { color: colors.text, fontFamily: fonts.bodyMedium.fontFamily },
+          ]}
+        >
+          Premios: {item.premios}
+        </Text>
       </Card.Content>
     </Card>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {adminContests.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Mis concursos (Admin)</Text>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.primary, fontFamily: fonts.titleMedium.fontFamily },
+            ]}
+          >
+            Mis concursos (Admin)
+          </Text>
           <FlatList
             data={adminContests}
-            keyExtractor={i => i.id}
+            keyExtractor={(i) => i.id}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 20 }}
           />
@@ -91,17 +124,31 @@ export default function MyContests() {
       )}
       {participContests.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Concursos en los que participo</Text>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.primary, fontFamily: fonts.titleMedium.fontFamily },
+            ]}
+          >
+            Concursos en los que participo
+          </Text>
           <FlatList
             data={participContests}
-            keyExtractor={i => i.id}
+            keyExtractor={(i) => i.id}
             renderItem={renderItem}
           />
         </>
       )}
       {adminContests.length === 0 && participContests.length === 0 && (
         <View style={styles.empty}>
-          <Text>No estás participando en ningún concurso.</Text>
+          <Text
+            style={[
+              styles.emptyText,
+              { color: colors.placeholder, fontFamily: fonts.bodyMedium.fontFamily },
+            ]}
+          >
+            No estás participando en ningún concurso.
+          </Text>
         </View>
       )}
     </View>
@@ -109,8 +156,11 @@ export default function MyContests() {
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, padding: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginVertical: 10 },
-  card:         { marginBottom: 10 },
-  empty:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, padding: 10 },
+  sectionTitle: { fontSize: 20, marginVertical: 10 },
+  card: { marginBottom: 10, borderRadius: 12, elevation: 2 },
+  cardTitle: { fontSize: 18 },
+  infoText: { fontSize: 14, marginVertical: 2 },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { fontSize: 16 },
 });

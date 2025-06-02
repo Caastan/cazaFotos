@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext, useLayoutEffect } from 'react';
 import { ScrollView, StyleSheet, View, Alert } from 'react-native';
-import { Text, Button, IconButton, ProgressBar } from 'react-native-paper'; // <-- import ProgressBar
+import { Text, Button, IconButton, ProgressBar, useTheme } from 'react-native-paper'; // <-- import ProgressBar
 import * as ImagePicker from 'expo-image-picker';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system'; // <-- import FileSystem
@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 import { AuthContext } from '../../contexts/AuthContext';
 
 export default function ContestDetailScreen() {
+  const { colors } = useTheme();
   const { params: { contest } } = useRoute();
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
@@ -25,12 +26,13 @@ export default function ContestDetailScreen() {
         headerRight: () => (
           <IconButton
             icon="cog"
+            color={colors.primary}
             onPress={() => navigation.navigate('ContestSettings', { contestId: contest.id })}
           />
         ),
       });
     }
-  }, [navigation, user, contest]);
+  }, [navigation, user, contest, colors.primary]);
 
   // Fetch membership request status for participant
   useEffect(() => {
@@ -229,9 +231,9 @@ export default function ContestDetailScreen() {
 
   // Participant view
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{contest.titulo}</Text>
-      <Text style={styles.detail}>Descripción: {contest.descripcion}</Text>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+      <Text style={[styles.title, { color: colors.primary }]}>📸 {contest.titulo}</Text>
+      <Text style={[styles.detail, { color: colors.text }]}>{contest.descripcion}</Text>
       <View style={styles.buttonRow}>
         {membershipRequest === null && (
           <Button
@@ -249,31 +251,38 @@ export default function ContestDetailScreen() {
           <Text style={styles.status}>Solicitud rechazada</Text>
         )}
         {membershipRequest === 'admitted' && (
-          <>
-            <Button
-              mode="contained"
-              onPress={handlePickImage}
-              style={styles.button}
-              disabled={uploading}
-            >
-              Subir Foto
-            </Button>
+        <>
+          <Button
+            mode="contained"
+            onPress={handlePickImage}
+            style={[styles.button, { backgroundColor: colors.primary }]}
+            labelStyle={{ fontFamily: 'Poppins_500Medium' }}
+          >
+            Subir Foto
+          </Button>
 
             {/* ProgressBar mientras sube */}
             {uploading && (
-              <View style={styles.progressContainer}>
-                <ProgressBar progress={uploadProgress} style={{ marginVertical: 8 }} />
-                <Text>{Math.round(uploadProgress * 100)}%</Text>
-              </View>
-            )}
+            <View style={styles.progressContainer}>
+              <ProgressBar
+                progress={uploadProgress}
+                color={colors.accent}
+                style={{ height: 8, borderRadius: 6 }}
+              />
+              <Text style={{ color: colors.text, marginTop: 4 }}>
+                {Math.round(uploadProgress * 100)}%
+              </Text>
+            </View>
+          )}
 
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('Gallery', { contestId: contest.id })}
-              style={styles.button}
-            >
-              Ver Galería
-            </Button>
+          <Button
+            mode="outlined"
+            onPress={() => navigation.navigate('Gallery', { contestId: contest.id })}
+            style={[styles.button, { borderColor: colors.primary }]}
+            labelStyle={{ color: colors.primary, fontFamily: 'Poppins_400Regular' }}
+          >
+            Ver Galería
+          </Button>
           </>
         )}
       </View>
@@ -282,14 +291,27 @@ export default function ContestDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 10 },
-  detail: { marginBottom: 6 },
-  buttonRow: { marginTop: 20 },
-  button: { marginBottom: 12 },
-  status: { marginVertical: 12, fontSize: 16, textAlign: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  title: {
+    fontSize: 26,
+    fontFamily: 'Poppins_600SemiBold',
+    marginBottom: 8,
+  },
+  detail: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  button: {
+    marginVertical: 10,
+    borderRadius: 20,
+    paddingVertical: 6,
+  },
   progressContainer: {
-    marginHorizontal: 20,
+    marginVertical: 12,
     alignItems: 'center',
   },
 });

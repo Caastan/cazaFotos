@@ -1,12 +1,12 @@
-// src/screens/contest/ContestListScreen.js
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
-import { Card, Text, FAB, ActivityIndicator } from 'react-native-paper';
+import { Card, Text, FAB, ActivityIndicator, useTheme } from 'react-native-paper';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../config/supabase';
 import { AuthContext } from '../../contexts/AuthContext';
 
 export default function ContestListScreen() {
+  const { colors, fonts } = useTheme();
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
@@ -27,16 +27,15 @@ export default function ContestListScreen() {
       setLoading(false);
     }
   };
-  // Refetch when screen gains focus
+  // Refetch cuando la pantalla gana foco
   useFocusEffect(
     useCallback(() => {
       fetchContests();
     }, [])
   );
 
-  // Realtime subscription for new contests using supabase-js v2 realtime API
+  // Suscripción en tiempo real a nuevos concursos (Supabase JS v2)
   useEffect(() => {
-    // Create a realtime channel on the 'concursos' table
     const channel = supabase
       .channel('public:concursos')
       .on(
@@ -55,36 +54,62 @@ export default function ContestListScreen() {
     };
   }, []);
 
-
   if (loading) {
     return <ActivityIndicator style={{ marginTop: 40 }} />;
   }
 
   const renderItem = ({ item }) => (
     <Card
-      style={styles.card}
+      style={[styles.card, { backgroundColor: colors.surface }]}
       onPress={() => navigation.navigate('ContestDetail', { contest: item })}
     >
-      <Card.Title title={item.titulo} subtitle={`Tema: ${item.tema}`} />
-      <Card.Content>
-        <Text>Plazo subida: {new Date(item.fecha_fin_subida).toLocaleString()}</Text>
-        <Text>Premios: {item.premios}</Text>
+      <Card.Title
+        title={item.titulo}
+        titleStyle={[
+          styles.cardTitle,
+          { color: colors.primary, fontFamily: fonts.titleMedium.fontFamily },
+        ]}
+        subtitle={`Tema: ${item.tema}`}
+        subtitleStyle={{
+          color: colors.placeholder,
+          fontFamily: fonts.bodyMedium.fontFamily,
+        }}
+      />
+      <Card.Content style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+        <Text
+          style={[
+            styles.infoText,
+            { color: colors.text, fontFamily: fonts.bodyMedium.fontFamily },
+          ]}
+        >
+          Plazo subida: {new Date(item.fecha_fin_subida).toLocaleString()}
+        </Text>
+        <Text
+          style={[
+            styles.infoText,
+            { color: colors.text, fontFamily: fonts.bodyMedium.fontFamily },
+          ]}
+        >
+          Premios: {item.premios}
+        </Text>
       </Card.Content>
     </Card>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={contests}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        contentContainerStyle={{ paddingBottom: 24 }}
       />
       {user?.rol === 'admin' && (
         <FAB
           icon="plus"
           onPress={() => navigation.navigate('CreateContest')}
-          style={styles.fab}
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          color="#fff"
         />
       )}
     </View>
@@ -93,6 +118,8 @@ export default function ContestListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 8 },
-  card:      { marginVertical: 6 },
-  fab:       { position: 'absolute', right: 20, bottom: 20 },
+  card: { marginVertical: 6, borderRadius: 12, elevation: 2 },
+  cardTitle: { fontSize: 20 },
+  infoText: { fontSize: 14, marginVertical: 2 },
+  fab: { position: 'absolute', right: 20, bottom: 20, borderRadius: 28, elevation: 4 },
 });
