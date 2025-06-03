@@ -1,119 +1,205 @@
-// src/contexts/AuthContext.js
-import React, { createContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth, db } from '../lib/supabaseClients';
+// contexts/AuthContext.js
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../config/supabase';
+import { db } from '../lib/supabaseClients';
 
-export const AuthContext = createContext();
+const AuthContext = createContext();
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper: carga el perfil desde la tabla usuarios
-  const fetchProfile = async (userId) => {
-    const { data, error } = await db
-      .from('usuarios')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    if (error) throw error;
-    return data;
+  // Obtiene el perfil desde la tabla "usuarios"
+  const fetchUserProfile = async (sbUser) => {
+    try {
+      const { data, error, status } = await db
+        .from('usuarios')
+        .select('*')
+        .eq('id', sbUser.id)
+        .single();
+      if (error && status === 406) {
+        // No hay fila aún
+        setUser(null);
+        return;
+      }
+      if (error) throw error;
+      setUser(data);
+    } catch (error) {
+      console.log('Error fetching user profile:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // On mount: intenta restaurar sesión y perfil
   useEffect(() => {
-    (async () => {
-      try {
-        // 1) revisa sesión en GoTrue
-        const { data: { session } } = await auth.getSession();
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_, session) => {
         if (session?.user) {
-          // 2) si hay session, trae perfil de tabla
-          const profile = await fetchProfile(session.user.id);
-          const fullUser = { ...session.user, ...profile };
-          setUser(fullUser);
-          await AsyncStorage.setItem('@rf_user', JSON.stringify(fullUser));
+          const sbUser = session.user;
+          // Si el correo no está verificado, cerramos sesión
+          if (!sbUser.email_confirmed_at) {
+            await supabase.auth.signOut();
+            Alert.alert(
+              'Verifica tu correo',
+              'Debes verificar tu email antes de entrar a la aplicación.'
+            );
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+          await fetchUserProfile(sbUser);
         } else {
-          // 3) si no, intenta cargar de storage
-          const json = await AsyncStorage.getItem('@rf_user');
-          if (json) setUser(JSON.parse(json));
+          setUser(null);
+          setLoading(false);
         }
-      } catch {
-        // ignore
-      } finally {
+      }
+    );
+
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        const sbUser = session.user;
+        if (!sbUser.email_confirmed_at) {
+          setLoading(false);
+          return;
+        }
+        await fetchUserProfile(sbUser);
+      } else {
         setLoading(false);
       }
     })();
-    // Suscripción a cambios de auth para refrescar perfil en caliente
-    const { data: listener } = auth.onAuthStateChange(async (_, session) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        const fullUser = { ...session.user, ...profile };
-        setUser(fullUser);
-        await AsyncStorage.setItem('@rf_user', JSON.stringify(fullUser));
-      } else {
-        setUser(null);
-        AsyncStorage.removeItem('@rf_user');
-      }
-    });
-    return () => listener.subscription.unsubscribe();
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  const signIn = async ({ email, password }) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    // tras login, traemos perfil y guardamos
-    const profile  = await fetchProfile(data.user.id);
-    const fullUser = { ...data.user, ...profile };
-    setUser(fullUser);
-    await AsyncStorage.setItem('@rf_user', JSON.stringify(fullUser));
-    return fullUser;
-  };
-
-   const register = async ({ nombre, email, password, rol }) => {
-    // 1) Crear usuario en Auth
-    const { data, error: authError } = await auth.signUp({ email, password });
-    if (authError) throw authError;
-
-    // 2) Insertar perfil en la tabla usuarios
-    const user = data.user;
-    const { error: dbError } = await db
-      .from('usuarios')
-      .insert([{ id: user.id, email, display_name: nombre, rol }]);
-    if (dbError) throw dbError;
-
-    // 3) Opcional: cargar perfil completo y persistir
-    const profile = await db
-      .from('usuarios')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-      .then(res => {
-        if (res.error) throw res.error;
-        return res.data;
+  const register = async ({ email, password, displayName, rolElegido }) => {
+    try {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
       });
-    const fullUser = { ...user, ...profile };
-    setUser(fullUser);
-    await AsyncStorage.setItem('@rf_user', JSON.stringify(fullUser));
+      if (signUpError) throw signUpError;
+      const sbUser = signUpData.user;
 
-    return fullUser;
+      const statusInicial = rolElegido === 'participante' ? 'pending' : 'active';
+      const newUser = {
+        id:           sbUser.id,
+        email,
+        display_name: displayName,
+        rol:          rolElegido,
+        status:       statusInicial,
+        photourl:     null,
+      };
+      // Insertamos en la tabla "usuarios"
+      const { error: insertError } = await db.from('usuarios').insert(newUser);
+      if (insertError) {
+        // Si falla, eliminamos el usuario de Auth
+        await supabase.auth.admin.deleteUser(sbUser.id);
+        throw insertError;
+      }
+
+      if (rolElegido === 'general') {
+        Alert.alert(
+          'Registro completado',
+          'Revisa tu correo para verificar tu cuenta antes de entrar.'
+        );
+        // Enviamos email de verificación
+      } else {
+        Alert.alert(
+          'Registro completado',
+          'Tu cuenta de participante está pendiente de aprobación por un administrador.'
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error al registrar', error.message);
+      throw error;
+    }
   };
 
-  const resetPassword = async (email) => {
-    const { error } = await auth.requestPasswordRecovery(email);
-    if (error) throw error;
+  const signIn = async ({ email, password }) => {
+    try {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) throw signInError;
+
+      const sbUser = signInData.user;
+      // Verificar email confirmado
+      if (!sbUser.email_confirmed_at) {
+        await supabase.auth.signOut();
+        Alert.alert(
+          'Verifica tu correo',
+          'Debes verificar tu email antes de entrar a la aplicación.'
+        );
+        return;
+      }
+
+      // Rebuscamos el perfil en la tabla "usuarios"
+      await fetchUserProfile(sbUser);
+
+      // Para participantes pendientes o rechazados, mostramos alerta y cerramos sesión
+      if (user?.rol === 'participante' && user.status === 'pending') {
+        Alert.alert('Cuenta pendiente', 'Tu cuenta aún no ha sido aprobada.');
+        await supabase.auth.signOut();
+        setUser(null);
+      }
+      if (user?.status === 'rejected') {
+        Alert.alert(
+          'Cuenta rechazada',
+          'Tu solicitud fue rechazada. Contacta al administrador.'
+        );
+        await supabase.auth.signOut();
+        setUser(null);
+      }
+    } catch (error) {
+      Alert.alert('Error al iniciar sesión', error.message);
+      throw error;
+    }
   };
 
   const signOut = async () => {
-    await auth.signOut();
+    await supabase.auth.signOut();
     setUser(null);
-    await AsyncStorage.removeItem('@rf_user');
   };
 
-  if (loading) return null;
-  return (
-    <AuthContext.Provider value={{ user, signIn, signOut, register, resetPassword }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const updateProfile = async ({ displayName, photourl }) => {
+    try {
+      const updates = {
+        display_name: displayName,
+        photourl,
+      };
+      const { error } = await db
+        .from('usuarios')
+        .update(updates)
+        .eq('id', user.id);
+      if (error) throw error;
+      setUser({ ...user, ...updates });
+      Alert.alert('Perfil actualizado', 'Tus datos fueron actualizados correctamente.');
+    } catch (error) {
+      Alert.alert('Error al actualizar perfil', error.message);
+      throw error;
+    }
+  };
+
+  const value = {
+    user,
+    loading,
+    register,
+    signIn,
+    signOut,
+    updateProfile,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
