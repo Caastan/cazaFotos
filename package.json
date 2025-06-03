@@ -19,6 +19,7 @@
     "@supabase/postgrest-js": "^1.19.4",
     "@supabase/storage-js": "^2.7.3",
     "@supabase/supabase-js": "^2.49.8",
+    "date-fns": "^4.1.0",
     "expo": "~53.0.9",
     "expo-font": "~13.3.1",
     "expo-image-manipulator": "^13.1.7",
@@ -36,7 +37,7 @@
     "react-native-safe-area-context": "^5.4.0",
     "react-native-screens": "^4.10.0",
     "react-native-url-polyfill": "^2.0.0",
-    "react-native-vector-icons": "^10.2.0",
+    "react-native-uuid": "^2.0.3",
     "stream-browserify": "^3.0.0",
     "yup": "^1.6.1"
   },
