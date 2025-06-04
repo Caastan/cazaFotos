@@ -14,45 +14,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Setup de Node.js (usa una LTS que Expo/EAS soporte, p.ej. 18 o 20)
+      # 2) Configura Node.js (LTS recomendada para EAS/Expo)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      # 3) Instala dependencias (incluye expo, react-native, supabase, etc.)
+      # 3) Instala dependencias (incluye expo y supabase)
       - name: Install dependencies
         run: npm ci
 
-      # 4) Instala EAS CLI (la nueva forma recomendada de build)
+      # 4) Instala EAS CLI globalmente
       - name: Install EAS CLI
         run: npm install --global eas-cli
 
-      # 5) Login a Expo/EAS usando el token en Secrets
-      - name: Login to Expo/EAS
+      # 5) Ejecuta el build con EAS (detecta EXPO_TOKEN automáticamente)
+      - name: Build Android APK with EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          npx eas login --token "$EXPO_TOKEN"
-
-      # 6) Lanza EAS Build para Android (produce un APK según eas.json)
-      - name: Build Android APK with EAS
-        run: |
           npx eas build --platform android --profile production --non-interactive
 
-      # 7) Descarga el artefacto de EAS (APK) y lo sube como asset en GitHub Actions  
-      #    Nota: EAS Build imprime un URL al finalizar; podemos usar eas-cli para "download"
+      # 6) Descarga el APK generado
       - name: Download the Android APK artifact
         run: |
-          # extrae el ID del build recién lanzado
-          BUILD_ID=$(npx eas build:list --status finished --platform android --limit 1 --json | jq -r '.[0].id')
+          # Obtén el ID del último build finalizado para Android
+          BUILD_ID=$(npx eas build:list \
+            --status finished \
+            --platform android \
+            --limit 1 \
+            --json \
+            | jq -r '.[0].id')
           echo "Último build ID: $BUILD_ID"
-          # descarga el APK a la carpeta de trabajo
+          # Descarga el APK a 'app.apk'
           npx eas build:download --platform android --id "$BUILD_ID" --output ./app.apk
 
-      # 8) Sube el APK descargado como artefacto en GitHub
+      # 7) Sube el APK como artefacto (usando v2 en lugar de v3)
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: cazaFotos-android-apk
           path: app.apk
