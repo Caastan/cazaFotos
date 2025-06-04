@@ -163,7 +163,17 @@ export function AuthProvider({ children }) {
         setUser(null);
       }
     } catch (error) {
-      Alert.alert('Error al iniciar sesión', error.message);
+       switch (error.message) {
+         case 'missing email or phone': 
+            Alert.alert('Campos Vacíos', 'Por favor, rellene los campos.');
+            break;
+          case 'Invalid login credentials':
+            Alert.alert('Credenciales inválidas', 'El correo o la contraseña son incorrectos.');
+            break;
+          case 'Email not confirmed':
+            Alert.alert('Email no confirmado', 'Por favor, verifica tu correo electrónico.');
+            break;
+       }
       throw error;
     }
   };
