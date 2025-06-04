@@ -1,3 +1,5 @@
+// screens/FotosScreen.js
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -10,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { db } from '../lib/supabaseClients';
+import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { startOfToday } from 'date-fns';
 import { useIsFocused } from '@react-navigation/native';
@@ -20,6 +23,7 @@ export default function FotosScreen() {
   const [loading, setLoading] = useState(true);
   const isFocused = useIsFocused();
 
+  // 1) Trae todas las fotos con status = 'approved'
   const fetchFotos = async () => {
     setLoading(true);
     try {
@@ -37,6 +41,7 @@ export default function FotosScreen() {
         `)
         .eq('status', 'approved')
         .order('votes_count', { ascending: false });
+
       if (error) throw error;
       setFotos(data || []);
     } catch (error) {
@@ -47,38 +52,106 @@ export default function FotosScreen() {
     }
   };
 
+  // 2a) Cada vez que esta pantalla reciba foco, volvemos a leer las fotos
   useEffect(() => {
-     if (isFocused) {
+    if (isFocused) {
       fetchFotos();
     }
   }, [isFocused]);
 
+  // 2b) Suscripción en tiempo real: si cualquier fila de "fotos" cambia el votes_count,
+  //    actualizamos nuestro estado local para que la UI refleje el nuevo valor.
+  useEffect(() => {
+     const fotosChannel = supabase
+    .channel('public:fotos')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'fotos' },
+      (payload) => {
+        const updated = payload.new;
+        // Solo nos interesan fotos que estén aprobadas
+        if (updated.status === 'approved') {
+          setFotos((prev) =>
+            prev.map((f) =>
+              f.id === updated.id
+                ? { ...f, votes_count: updated.votes_count }
+                : f
+            )
+          );
+        }
+      }
+    )
+    .subscribe();
+
+    return () => {
+      // 2) Nos desinscribimos al desmontar el componente
+    supabase.removeChannel(fotosChannel);
+    };
+  }, []);
+
+  // 3) Función para votar: inserta fila en "votos" y hace UPDATE en "fotos"
   const handleVotar = async (foto) => {
-    if (!user || user.rol !== 'general' || user.status !== 'active') return;
-    try {
-      const { count, error: countError } = await db
-        .from('votos')
-        .select('id', { count: 'exact', head: true })
-        .eq('usuario_id', user.id)
-        .gte('created_at', startOfToday());
-      if (countError) throw countError;
-      if (count >= 10) {
-        Alert.alert('Límite diario alcanzado', 'Solo puedes votar 10 veces al día.');
+  // Sólo "general" activo puede votar
+  if (!user || user.rol !== 'general' || user.status !== 'active') {
+    return;
+  }
+
+  try {
+    // 1) Contar cuántos votos lleva hoy
+    const { count, error: countError } = await db
+      .from('votos')
+      .select('id', { count: 'exact', head: true })
+      .eq('usuario_id', user.id)
+      .gte('created_at', startOfToday());
+
+    if (countError) throw countError;
+
+    if (count >= 10) {
+      Alert.alert('Límite diario alcanzado', 'Solo puedes votar 10 veces al día.');
+      return;
+    }
+
+    // 2) Intentar insertar el voto (puede fallar si ya existe uno igual)
+    const { error: insertVotoError } = await db
+      .from('votos')
+      .insert({ usuario_id: user.id, foto_id: foto.id });
+
+    if (insertVotoError) {
+      // Si es duplicado, el código en Postgres es 23505
+      if (insertVotoError.code === '23505') {
+        Alert.alert('Ya votaste esta foto', 'No puedes votar dos veces la misma foto.');
         return;
       }
-      await db.from('votos').insert({ usuario_id: user.id, foto_id: foto.id });
-      await db
-        .from('fotos')
-        .update({ votes_count: foto.votes_count + 1 })
-        .eq('id', foto.id);
-      Alert.alert('¡Gracias por tu voto!');
-      fetchFotos();
-    } catch (error) {
-      console.log('Error al votar:', error);
-      Alert.alert('Error al votar', error.message);
+      throw insertVotoError;
     }
-  };
 
+    // 3) Optimistic UI: subimos el contador localmente
+    const nuevaCuenta = foto.votes_count + 1;
+    setFotos((prev) =>
+      prev.map((f) =>
+        f.id === foto.id
+          ? { ...f, votes_count: nuevaCuenta }
+          : f
+      )
+    );
+
+    // 4) Actualizamos en la base de datos
+    const { error: updateFotoError } = await db
+      .from('fotos')
+      .update({ votes_count: nuevaCuenta })
+      .eq('id', foto.id);
+
+    if (updateFotoError) throw updateFotoError;
+
+    Alert.alert('¡Gracias por tu voto!');
+  } catch (error) {
+    console.log('Error al votar:', error);
+    Alert.alert('Error al votar', error.message);
+  }
+};
+
+
+  // 4) Renderizamos cada foto en la lista
   const renderItem = ({ item }) => {
     const fecha = new Date(item.created_at).toLocaleDateString();
     return (
@@ -103,6 +176,7 @@ export default function FotosScreen() {
     );
   };
 
+  // 5) Indicador de carga
   if (loading) {
     return (
       <View style={styles.center}>
@@ -111,6 +185,7 @@ export default function FotosScreen() {
     );
   }
 
+  // 6) Lista de fotos aprobadas
   return (
     <FlatList
       data={fotos}
@@ -124,6 +199,7 @@ export default function FotosScreen() {
   );
 }
 
+// 7) Estilos originales (no han cambiado)
 const styles = StyleSheet.create({
   listContainer: {
     padding: 12,
