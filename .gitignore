@@ -32,6 +32,76 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
 
 # typescript
 *.tsbuildinfo
+
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# Editor & OS
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+.vscode/
+.idea/
+*.sublime-*
+*.sw?
+*~ 
+.DS_Store
+Thumbs.db
+
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# Logs & cobertura
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# Caches de Expo / Metro / Yarn
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+.expo/
+.expo-shared/
+.metro-cache/
+.web-build/          # si usas expo web
+node_modules/
+.yarn/cache/
+.yarn/unplugged/
+.pnp.*
+.pnp.js
+
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# Directorios nativos (solo si has prebuild / ejected)
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+android/
+ios/
+
+# Android
+**/android/.gradle/
+**/android/app/build/
+
+# iOS / Xcode
+**/ios/Pods/
+**/ios/build/
+xcuserdata/
+*.xcworkspace
+*.xcodeproj/project.xcworkspace
+*.xcodeproj/xcuserdata/
+
+# CocoaPods
+Podfile.lock
+
+# Keystores y secretos
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
+*.pfx
+*.key
+
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# TypeScript / Misc
+# ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+*.tsbuildinfo
+.idea/
