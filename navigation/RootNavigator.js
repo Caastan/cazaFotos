@@ -1,4 +1,3 @@
-// navigation/RootNavigator.js
 import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -61,8 +60,19 @@ export default function RootNavigator() {
             }
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: '#007aff',
-          tabBarInactiveTintColor: 'gray',
+          tabBarActiveTintColor: '#2563eb',
+          tabBarInactiveTintColor: '#94a3b8',
+          tabBarStyle: {
+            backgroundColor: '#ffffff',
+            borderTopColor: '#e5e7eb',
+            paddingBottom: 6,
+            height: 64,
+            paddingTop: 2,
+          },
+          tabBarLabelStyle: {
+            fontSize: 13,
+            fontWeight: '500',
+          },
         })}
       >
         <Tab.Screen name="Fotos" component={FotosScreen} />
@@ -71,11 +81,9 @@ export default function RootNavigator() {
         {user ? (
           <>
             <Tab.Screen name="Perfil" component={Perfil} />
-
             {user.rol === 'participante' && user.status === 'active' && (
               <Tab.Screen name="MiGalería" component={MiGaleria} />
             )}
-
             {user.rol === 'admin' && (
               <Tab.Screen name="Gestión Usuarios" component={GestionUsuarios} />
             )}
