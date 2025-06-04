@@ -1,4 +1,3 @@
-// screens/GestionUsuarios.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -23,10 +22,11 @@ export default function GestionUsuarios() {
         .eq('rol', 'participante')
         .eq('status', 'pending')
         .order('created_at', { ascending: true });
+
       if (error) throw error;
-      setUsuarios(data);
+      setUsuarios(data || []);
     } catch (error) {
-      console.log('Error fetching usuarios:', error);
+      Alert.alert('Error', 'No se pudieron cargar los usuarios pendientes.');
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,6 @@ export default function GestionUsuarios() {
         .eq('id', usuarioId);
       fetchUsuariosPendientes();
     } catch (error) {
-      console.log('Error actualizando usuario:', error);
       Alert.alert('Error', error.message);
     }
   };
@@ -55,13 +54,13 @@ export default function GestionUsuarios() {
       <Text style={styles.emailText}>{item.email}</Text>
       <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#34c759' }]}
+          style={[styles.actionButton, styles.approveButton]}
           onPress={() => handleActualizarEstado(item.id, 'active')}
         >
           <Text style={styles.actionButtonText}>Aprobar</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#ff3b30' }]}
+          style={[styles.actionButton, styles.rejectButton]}
           onPress={() => handleActualizarEstado(item.id, 'rejected')}
         >
           <Text style={styles.actionButtonText}>Rechazar</Text>
@@ -84,51 +83,66 @@ export default function GestionUsuarios() {
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
       contentContainerStyle={styles.listContainer}
-      ListEmptyComponent={<Text style={styles.emptyText}>No hay usuarios pendientes.</Text>}
+      ListEmptyComponent={
+        <Text style={styles.emptyText}>No hay usuarios pendientes.</Text>
+      }
     />
   );
 }
 
 const styles = StyleSheet.create({
   listContainer: {
-    padding: 12,
+    padding: 16,
+    backgroundColor: '#f8fafc',
   },
   card: {
     backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 12,
-    elevation: 2,
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   nameText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
   },
   emailText: {
     fontSize: 14,
-    color: '#555',
-    marginVertical: 4,
+    color: '#6b7280',
+    marginBottom: 14,
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
   },
   actionButton: {
     flex: 1,
-    padding: 10,
-    borderRadius: 6,
+    paddingVertical: 10,
+    borderRadius: 30,
     alignItems: 'center',
-    marginHorizontal: 4,
+    marginHorizontal: 6,
+  },
+  approveButton: {
+    backgroundColor: '#22c55e',
+  },
+  rejectButton: {
+    backgroundColor: '#ef4444',
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontWeight: '600',
   },
   emptyText: {
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
+    color: '#9ca3af',
   },
   center: {
     flex: 1,

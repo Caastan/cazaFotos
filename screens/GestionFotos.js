@@ -1,4 +1,3 @@
-// screens/GestionFotos.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -18,7 +17,6 @@ export default function GestionFotos() {
   const [fotos, setFotos] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1) Carga todas las fotos pendientes (status = 'pending')
   const fetchFotosPendientes = async () => {
     setLoading(true);
     try {
@@ -31,7 +29,6 @@ export default function GestionFotos() {
       if (error) throw error;
       setFotos(data || []);
     } catch (error) {
-      console.log('Error fetching fotos pendientes:', error);
       Alert.alert('Error', 'No se pudieron cargar las fotos pendientes.');
     } finally {
       setLoading(false);
@@ -42,15 +39,12 @@ export default function GestionFotos() {
     fetchFotosPendientes();
   }, []);
 
-  // 2) Cambia el estado o elimina la foto
   const handleActualizarEstado = async (fotoId, nuevoEstado, fotoUrl) => {
     try {
       if (nuevoEstado === 'deleted') {
-        // 2.1) Eliminar registro de la tabla
         const { error: deleteError } = await db.from('fotos').delete().eq('id', fotoId);
         if (deleteError) throw deleteError;
 
-        // 2.2) Eliminar archivo en Storage
         const publicUrlPrefix = `${Constants.expoConfig.extra.SUPABASE_URL}/storage/v1/object/public/photos/`;
         const filePath = fotoUrl.replace(publicUrlPrefix, '');
         if (filePath) {
@@ -58,12 +52,10 @@ export default function GestionFotos() {
             .from('photos')
             .remove([filePath]);
           if (removeError) {
-            console.log('Error al eliminar archivo de Storage:', removeError);
             Alert.alert('Error', 'No se pudo eliminar el archivo del bucket.');
           }
         }
       } else {
-        // 2.3) Actualizar status a 'approved' o 'rejected'
         const { error: updateError } = await db
           .from('fotos')
           .update({ status: nuevoEstado })
@@ -71,43 +63,32 @@ export default function GestionFotos() {
         if (updateError) throw updateError;
       }
 
-      // 2.4) Refrescar lista de fotos pendientes
       await fetchFotosPendientes();
     } catch (error) {
-      console.log('Error actualizando foto:', error);
       Alert.alert('Error', error.message || 'No se pudo actualizar el estado.');
     }
   };
 
-  // 3) Render de cada tarjeta de foto pendiente
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <Image source={{ uri: item.url }} style={styles.image} />
       <Text style={styles.nameText}>Autor: {item.usuarios.display_name}</Text>
       <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#34c759' }]}
-          onPress={() =>
-            handleActualizarEstado(item.id, 'approved', item.url)
-          }
+          style={[styles.actionButton, styles.approveButton]}
+          onPress={() => handleActualizarEstado(item.id, 'approved', item.url)}
         >
           <Text style={styles.actionButtonText}>Aprobar</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#ff9f0a' }]}
-          onPress={() =>
-            handleActualizarEstado(item.id, 'rejected', item.url)
-          }
+          style={[styles.actionButton, styles.rejectButton]}
+          onPress={() => handleActualizarEstado(item.id, 'rejected', item.url)}
         >
           <Text style={styles.actionButtonText}>Rechazar</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#ff3b30' }]}
-          onPress={() =>
-            handleActualizarEstado(item.id, 'deleted', item.url)
-          }
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => handleActualizarEstado(item.id, 'deleted', item.url)}
         >
           <Text style={styles.actionButtonText}>Eliminar</Text>
         </TouchableOpacity>
@@ -138,14 +119,19 @@ export default function GestionFotos() {
 
 const styles = StyleSheet.create({
   listContainer: {
-    padding: 12,
+    padding: 16,
+    backgroundColor: '#f8fafc',
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 6,
-    marginBottom: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    elevation: 3,
     overflow: 'hidden',
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   image: {
     width: '100%',
@@ -153,28 +139,40 @@ const styles = StyleSheet.create({
   },
   nameText: {
     fontSize: 16,
-    margin: 12,
+    fontWeight: '500',
+    padding: 14,
+    color: '#111827',
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    padding: 12,
   },
   actionButton: {
     flex: 1,
-    padding: 10,
-    borderRadius: 6,
-    alignItems: 'center',
+    paddingVertical: 10,
     marginHorizontal: 4,
+    borderRadius: 30,
+    alignItems: 'center',
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontWeight: '600',
+  },
+  approveButton: {
+    backgroundColor: '#22c55e',
+  },
+  rejectButton: {
+    backgroundColor: '#f59e0b',
+  },
+  deleteButton: {
+    backgroundColor: '#ef4444',
   },
   emptyText: {
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
+    color: '#9ca3af',
   },
   center: {
     flex: 1,

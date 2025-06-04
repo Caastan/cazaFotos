@@ -1,4 +1,3 @@
-// screens/Auth/AuthScreen.js
 import React, { useState } from 'react';
 import {
   View,
@@ -19,7 +18,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [rol, setRol] = useState('general'); // 'general' o 'participante'
+  const [rol, setRol] = useState('general');
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
 
@@ -69,6 +68,7 @@ export default function AuthScreen() {
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
+        placeholderTextColor="#999"
       />
       <TextInput
         placeholder="Contraseña"
@@ -76,6 +76,7 @@ export default function AuthScreen() {
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+        placeholderTextColor="#999"
       />
       {!isLogin && (
         <>
@@ -85,12 +86,14 @@ export default function AuthScreen() {
             secureTextEntry
             value={confirmPassword}
             onChangeText={setConfirmPassword}
+            placeholderTextColor="#999"
           />
           <TextInput
             placeholder="Nombre para mostrar"
             style={styles.input}
             value={displayName}
             onChangeText={setDisplayName}
+            placeholderTextColor="#999"
           />
           <View style={styles.rolContainer}>
             <TouchableOpacity
@@ -100,7 +103,7 @@ export default function AuthScreen() {
               ]}
               onPress={() => setRol('general')}
             >
-              <Text>General</Text>
+              <Text style={styles.rolText}>General</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -109,7 +112,7 @@ export default function AuthScreen() {
               ]}
               onPress={() => setRol('participante')}
             >
-              <Text>Participante</Text>
+              <Text style={styles.rolText}>Participante</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -139,20 +142,25 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 28,
     justifyContent: 'center',
+    backgroundColor: '#f8fafc',
   },
   title: {
-    fontSize: 24,
-    marginBottom: 24,
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 32,
     textAlign: 'center',
+    color: '#1f2937',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 12,
+    borderColor: '#d1d5db',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+    backgroundColor: '#fff',
+    color: '#111',
   },
   rolContainer: {
     flexDirection: 'row',
@@ -160,30 +168,44 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   rolButton: {
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#888',
-    borderRadius: 6,
+    borderColor: '#d1d5db',
+    backgroundColor: '#f1f5f9',
   },
   rolButtonSelected: {
-    backgroundColor: '#ddd',
+    backgroundColor: '#2563eb20',
+    borderColor: '#2563eb',
+  },
+  rolText: {
+    color: '#1f2937',
+    fontWeight: '500',
   },
   submitButton: {
-    backgroundColor: '#007aff',
-    padding: 14,
-    borderRadius: 6,
+    backgroundColor: '#2563eb',
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   submitButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
   },
   toggleContainer: {
-    marginTop: 16,
+    marginTop: 28,
     alignItems: 'center',
   },
   toggleText: {
-    color: '#007aff',
+    color: '#2563eb',
+    fontSize: 14,
   },
 });

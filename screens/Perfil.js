@@ -1,4 +1,3 @@
-// screens/Perfil.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -54,19 +53,16 @@ export default function Perfil() {
     fetchStats();
   }, []);
 
-    const pickImage = async () => {
-    // 1) permisos
-    const { status } =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
     }
 
-    // 2) picker
     const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes:   ImagePicker.MediaTypeOptions.Images,
-      allowsEditing:true,
-      quality:      0.8,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
     });
     if (canceled) return;
 
@@ -75,37 +71,32 @@ export default function Perfil() {
       const { uri } = assets[0];
       const filename = `${user.id}_${Date.now()}.jpg`;
 
-      // Construimos el FormData sin usar blob()
       const formData = new FormData();
       formData.append('file', { uri, name: filename, type: 'image/jpeg' });
 
-      // Hacemos el POST directamente al endpoint de Storage
       const res = await fetch(
         `${Constants.expoConfig.extra.SUPABASE_URL}/storage/v1/object/avatars/${filename}`,
         {
           method: 'POST',
           headers: {
-            apikey:        Constants.expoConfig.extra.SUPABASE_ANON_KEY,
+            apikey: Constants.expoConfig.extra.SUPABASE_ANON_KEY,
             Authorization: `Bearer ${Constants.expoConfig.extra.SUPABASE_ANON_KEY}`,
             'Content-Type': 'multipart/form-data',
           },
           body: formData,
         }
       );
-    console.log('Respuesta de subida:', res.status, res.ok);
 
       if (!res.ok) {
         const err = await res.text();
         throw new Error(`Error en subida: ${res.status} ${err}`);
       }
 
-      // Obtenemos la URL pública con el cliente ligero
       const { data: { publicUrl }, error: urlError } = await storage
         .from('avatars')
         .getPublicUrl(filename);
       if (urlError) throw urlError;
 
-      // Actualizamos la tabla de usuarios
       const { error: dbError } = await db
         .from('usuarios')
         .update({ photourl: publicUrl })
@@ -124,40 +115,9 @@ export default function Perfil() {
   const handleSaveProfile = async () => {
     setUploading(true);
     try {
-      let publicURL = user.photourl;
-
-      // Si cambió la imagen, la subimos a bucket "avatars"
-      if (imageUri && imageUri !== user.photourl) {
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-        const ext = imageUri.split('.').pop();
-        const fileName = `avatar_${user.id}.${ext}`;
-        const uploadPath = `avatars/${user.id}/${fileName}`;
-
-        // 1) Subimos a supabase.storage.from('avatars').upload(...)
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('avatars')                         // <-- bucket "avatars"
-          .upload(uploadPath, blob, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: 'image/jpeg',
-          });
-
-        if (uploadError) throw uploadError;
-
-        // 2) Obtenemos la URL pública
-        const { publicUrl, error: urlError } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(uploadData.path);
-
-        if (urlError) throw urlError;
-        publicURL = publicUrl;
-      }
-
-      // 3) Actualizamos la tabla "usuarios"
-      await updateProfile({ displayName, photourl: publicURL });
+      await updateProfile({ displayName, photourl: imageUri });
+      Alert.alert('Perfil actualizado');
     } catch (error) {
-      console.log('Error actualizando perfil:', error);
       Alert.alert('Error', error.message);
     } finally {
       setUploading(false);
@@ -197,12 +157,12 @@ export default function Perfil() {
           <>
             {user.rol === 'participante' && (
               <>
-                <Text>Fotos subidas: {stats.totalFotos}</Text>
-                <Text>Votos totales recibidos: {stats.totalVotos}</Text>
+                <Text style={styles.statsText}>Fotos subidas: {stats.totalFotos}</Text>
+                <Text style={styles.statsText}>Votos recibidos: {stats.totalVotos}</Text>
               </>
             )}
             {user.rol === 'general' && (
-              <Text>Votos usados hoy: {stats.votosHoy} / 10</Text>
+              <Text style={styles.statsText}>Votos usados hoy: {stats.votosHoy} / 10</Text>
             )}
           </>
         )}
@@ -218,8 +178,9 @@ export default function Perfil() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 24,
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
   avatar: {
     width: 120,
@@ -228,41 +189,55 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatarPlaceholder: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#cbd5e1',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     color: '#fff',
+    fontWeight: '600',
   },
   input: {
     width: '80%',
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#d1d5db',
     padding: 12,
-    borderRadius: 6,
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 14,
+    backgroundColor: '#fff',
+    color: '#111827',
   },
   saveButton: {
-    backgroundColor: '#007aff',
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 24,
+    backgroundColor: '#2563eb',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 20,
+    width: '60%',
+    alignItems: 'center',
+    elevation: 2,
   },
   saveButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontWeight: '600',
   },
   statsContainer: {
     marginBottom: 24,
     alignItems: 'center',
   },
+  statsText: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 4,
+  },
   logoutButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: '#ef4444',
     padding: 12,
-    borderRadius: 6,
+    borderRadius: 12,
+    width: '60%',
+    alignItems: 'center',
   },
   logoutButtonText: {
     color: '#fff',
+    fontWeight: '600',
   },
 });
