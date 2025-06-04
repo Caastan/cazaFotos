@@ -28,7 +28,7 @@ jobs:
       - name: Install EAS CLI
         run: npm install --global eas-cli
 
-      # 5) Ejecuta el build con EAS (detecta EXPO_TOKEN automáticamente)
+      # 5) Ejecuta el build con EAS (EAS leerá EXPO_TOKEN automáticamente)
       - name: Build Android APK with EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -49,9 +49,9 @@ jobs:
           # Descarga el APK a 'app.apk'
           npx eas build:download --platform android --id "$BUILD_ID" --output ./app.apk
 
-      # 7) Sube el APK como artefacto (usando v2 en lugar de v3)
+      # 7) Sube el APK como artefacto (usando v1 en lugar de v2 o v3)
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v1
         with:
           name: cazaFotos-android-apk
           path: app.apk
