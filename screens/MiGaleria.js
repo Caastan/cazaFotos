@@ -44,15 +44,43 @@ export default function MiGaleria() {
     fetchMisFotos();
   }, []);
 
-  const handlePickImage = async () => {
-       Alert.alert(
-         "Instrucciones de subida",
-         TEXTO_INSTRUCCIONES_SUBIDA_ALERT,
-         [
-           { text: "OK", onPress: () => pickImage() }  
-         ]
-       );
-  }
+ const handlePickImage = async () => {
+    try {
+      const { count, error: countError } = await db
+        .from('fotos')
+        .select('id', { count: 'exact', head: true })
+        .eq('usuario_id', user.id);
+
+      if (countError) {
+        console.log('Error contando fotos existentes:', countError);
+        // Permitimos el flujo, pero podrías alertar si quieres bloquear en caso de fallo
+      } else if (count >= 5) {
+        Alert.alert(
+          'Límite alcanzado',
+          'Solo puedes subir un máximo de 5 fotos.'
+        );
+        return;
+      }
+    } catch (err) {
+      console.log('Excepción al contar fotos:', err);
+      // Si ocurre un error inesperado, bloqueamos la subida por seguridad
+      Alert.alert(
+        'Error',
+        'No se pudo verificar cuántas fotos has subido. Intenta más tarde.'
+      );
+      return;
+    }
+
+    // Si tiene menos de 5, mostramos instrucciones y luego abrimos el picker
+    Alert.alert(
+      'Instrucciones de subida',
+      TEXTO_INSTRUCCIONES_SUBIDA_ALERT,
+      [
+        { text: 'OK', onPress: () => pickImage() }
+      ]
+    );
+  };
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -204,6 +232,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   card: {
+    marginTop: 26,
     marginBottom: 20,
     backgroundColor: '#fff',
     borderRadius: 16,

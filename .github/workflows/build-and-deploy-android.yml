@@ -1,57 +1,44 @@
-name: Build APK on push to master
+name: Build Android Debug APK
 
 on:
   push:
     branches:
-      - master
+      - main   # Cambia “main” por la rama que tú uses
 
 jobs:
-  build-android:
+  build-debug:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Clona el repositorio
+      # 1) Trae el código
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Configura Node.js (LTS recomendada para EAS/Expo)
+      # 2) Instala Node.js (versión 18.x)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
 
-      # 3) Instala dependencias (incluye expo y supabase)
+      # 3) Instala dependencias JS con npm
       - name: Install dependencies
         run: npm ci
 
-      # 4) Instala EAS CLI globalmente
-      - name: Install EAS CLI
-        run: npm install --global eas-cli
+      # 4) Genera las carpetas nativas (en caso de estar en Managed Workflow)
+      - name: Prebuild Expo (Managed → Bare)
+        run: npx expo prebuild --platform android --no-install
 
-      # 5) Ejecuta el build con EAS (EAS leerá EXPO_TOKEN automáticamente)
-      - name: Build Android APK with EAS
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # 5) Compila el APK Debug con Gradle
+      - name: Build Debug APK
+        working-directory: android
         run: |
-          npx eas build --platform android --profile production --non-interactive
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      # 6) Descarga el APK generado
-      - name: Download the Android APK artifact
-        run: |
-          # Obtén el ID del último build finalizado para Android
-          BUILD_ID=$(npx eas build:list \
-            --status finished \
-            --platform android \
-            --limit 1 \
-            --json \
-            | jq -r '.[0].id')
-          echo "Último build ID: $BUILD_ID"
-          # Descarga el APK a 'app.apk'
-          npx eas build:download --platform android --id "$BUILD_ID" --output ./app.apk
-
-      # 7) Sube el APK como artefacto (usando v1 en lugar de v2 o v3)
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v1
+      # 6) Sube el APK Debug como artefacto de la Action
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v3
         with:
-          name: cazaFotos-android-apk
-          path: app.apk
+          name: app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
