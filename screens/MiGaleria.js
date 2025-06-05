@@ -14,6 +14,7 @@ import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { db, storage } from '../lib/supabaseClients';
 import Constants from 'expo-constants';
+import { TEXTO_INSTRUCCIONES_SUBIDA_ALERT } from '../utils/constantes';
 
 export default function MiGaleria() {
   const { user } = useAuth();
@@ -43,6 +44,15 @@ export default function MiGaleria() {
     fetchMisFotos();
   }, []);
 
+  const handlePickImage = async () => {
+       Alert.alert(
+         "Instrucciones de subida",
+         TEXTO_INSTRUCCIONES_SUBIDA_ALERT,
+         [
+           { text: "OK", onPress: () => pickImage() }  
+         ]
+       );
+  }
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -158,7 +168,7 @@ export default function MiGaleria() {
 
       <TouchableOpacity
         style={[styles.uploadButton, uploading && { opacity: 0.6 }]}
-        onPress={pickImage}
+        onPress={handlePickImage}
         disabled={uploading}
       >
         {uploading ? (
