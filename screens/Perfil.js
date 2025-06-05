@@ -160,7 +160,7 @@ export default function Perfil() {
           <>
             {user.rol === 'participante' && (
               <>
-                <Text style={styles.statsText}>Fotos subidas: {stats.totalFotos}</Text>
+                <Text style={styles.statsText}>Fotos subidas: {stats.totalFotos} / 5</Text>
                 <Text style={styles.statsText}>Votos recibidos: {stats.totalVotos}</Text>
               </>
             )}
