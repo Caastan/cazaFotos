@@ -41,3 +41,47 @@ export const TEXTO_REGLAMENTO = `
 10. Aceptación de las bases:
     La participación en el concurso implica la aceptación íntegra de las presentes bases.
 `;
+
+export const TEXTO_INSTRUCCIONES_SUBIDA = `
+Instrucciones para el envío de fotografías - Tema “Motos”:
+
+1. Tema del mes:
+   - Este mes, el tema obligatorio es “Motos”. 
+   - Solo se aceptarán fotografías donde la(s) protagonista(s) sea(n) claramente motocicletas (cualquier tipo o estilo). 
+   - Cualquier imagen que no muestre una moto será rechazada automáticamente por el administrador.
+
+2. Cómo subir tu fotografía:
+   - Accede a la sección “Enviar fotografía” en la aplicación.
+   - Selecciona el archivo desde tu dispositivo. 
+   - El archivo debe ser:
+     • Formato: JPEG (.jpg/.jpeg) o PNG (.png).  
+     • Tamaño máximo: 5 MB.  
+     • Resolución recomendada: al menos 1024×768 px, para asegurar buena calidad.
+   - Asegúrate de que la imagen esté bien enfocada y que la moto se vea completa o en un encuadre claro. 
+   - Evita incluir en la foto otros elementos que distraigan (personas, autos, paisajes que oculten la moto).
+
+3. Descripción y etiquetas:
+   - Al subir la imagen, escribe un breve título/descripción (máx. 100 caracteres) que mencione marca, modelo o contexto de la motocicleta (por ejemplo: “Harley-Davidson en ruta por el desierto”).
+   - Añade al menos una etiqueta que contenga la palabra “moto” para facilitar la clasificación.
+
+4. Revisión y estado:
+   - Tras pulsar “Enviar”, tu fotografía quedará en estado “pendiente de aprobación” hasta que el administrador verifique el cumplimiento del tema y los requisitos técnicos.
+   - Si la foto no cumple con el tema (motos) o no respeta el formato/tamaño, será rechazada. Podrás volver a subir otra dentro de los plazos indicados.
+
+5. Plazo de subida:
+   - Desde el 1 de junio de 2025 hasta el 30 de junio de 2025 (23:59 horas). 
+   - Recuerda que tienes derecho a subir hasta 5 fotografías diferentes, pero todas deben cumplir con el tema “Motos”.
+
+¡Suerte y a capturar la mejor imagen de una moto!
+`;
+
+export const TEXTO_INSTRUCCIONES_SUBIDA_ALERT = 
+  "TEMA – MOTOS\n" +
+  "• Solo se aceptan fotos donde la protagonista sea una motocicleta.\n" +
+  "• Formato: JPEG/PNG, tamaño máximo 5 MB.\n" +
+  "• Plazo: 1–30 junio 2025.\n" +
+  "• Puedes subir hasta 5 fotos (todas deben cumplir el tema).\n" +
+  "• Incluye título breve (marca/modelo).\n" +
+  "¡Buena suerte!";
+
+export const TEMA_DEL_MES = 'MOTOS';

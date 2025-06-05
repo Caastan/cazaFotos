@@ -37,11 +37,14 @@ export default function Perfil() {
           const totalVotos = votosSumData?.sum || 0;
           setStats({ totalFotos: fotosCount, totalVotos, votosHoy: 0 });
         } else if (user.rol === 'general') {
+          const hoy = startOfToday();
+          const isoHoy = hoy.toISOString();
+
           const { count: votosHoyCount } = await db
             .from('votos')
             .select('id', { count: 'exact', head: true })
             .eq('usuario_id', user.id)
-            .gte('created_at', startOfToday());
+            .gte('created_at', isoHoy);
           setStats({ totalFotos: 0, totalVotos: 0, votosHoy: votosHoyCount });
         }
       } catch (error) {
@@ -157,7 +160,7 @@ export default function Perfil() {
           <>
             {user.rol === 'participante' && (
               <>
-                <Text style={styles.statsText}>Fotos subidas: {stats.totalFotos}</Text>
+                <Text style={styles.statsText}>Fotos subidas: {stats.totalFotos} / 5</Text>
                 <Text style={styles.statsText}>Votos recibidos: {stats.totalVotos}</Text>
               </>
             )}
@@ -177,6 +180,7 @@ export default function Perfil() {
 
 const styles = StyleSheet.create({
   container: {
+    marginTop: 22,
     flex: 1,
     padding: 24,
     alignItems: 'center',

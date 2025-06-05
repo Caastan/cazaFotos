@@ -90,34 +90,55 @@ export default function FotosScreen() {
   }, []);
 
   // 3) Función para votar: inserta fila en "votos" y hace UPDATE en "fotos"
-  const handleVotar = async (foto) => {
-  // Sólo "general" activo puede votar
+ const handleVotar = async (foto) => {
+  // Sólo “general” activo puede votar
   if (!user || user.rol !== 'general' || user.status !== 'active') {
     return;
   }
 
   try {
-    // 1) Contar cuántos votos lleva hoy
+    // 1) Contar votos de hoy, usando ISOString para el filtro
+    const hoy = startOfToday();
+    const isoHoy = hoy.toISOString();
+
     const { count, error: countError } = await db
       .from('votos')
       .select('id', { count: 'exact', head: true })
       .eq('usuario_id', user.id)
-      .gte('created_at', startOfToday());
+      .gte('created_at', isoHoy);
 
-    if (countError) throw countError;
+    if (countError) {
+      console.log('— countError:', {
+        code: countError.code,
+        details: countError.details,
+        hint: countError.hint,
+        message: countError.message,
+        status: countError.status,
+      });
+      throw countError;
+    }
 
     if (count >= 10) {
       Alert.alert('Límite diario alcanzado', 'Solo puedes votar 10 veces al día.');
       return;
     }
 
-    // 2) Intentar insertar el voto (puede fallar si ya existe uno igual)
-    const { error: insertVotoError } = await db
+    // 2) Insertar un nuevo voto
+    const { data: votoData, error: insertVotoError } = await db
       .from('votos')
-      .insert({ usuario_id: user.id, foto_id: foto.id });
+      .insert({ usuario_id: user.id, foto_id: foto.id })
+      .select(); // devuelve la fila insertada (opcional)
 
     if (insertVotoError) {
-      // Si es duplicado, el código en Postgres es 23505
+      console.log('— insertVotoError:', {
+        code: insertVotoError.code,
+        details: insertVotoError.details,
+        hint: insertVotoError.hint,
+        message: insertVotoError.message,
+        status: insertVotoError.status,
+      });
+
+      // Si ya existe un voto igual (constraint UNIQUE), el código será 23505
       if (insertVotoError.code === '23505') {
         Alert.alert('Ya votaste esta foto', 'No puedes votar dos veces la misma foto.');
         return;
@@ -125,7 +146,7 @@ export default function FotosScreen() {
       throw insertVotoError;
     }
 
-    // 3) Optimistic UI: subimos el contador localmente
+    // 3) Optimistic UI (subir contador localmente)
     const nuevaCuenta = foto.votes_count + 1;
     setFotos((prev) =>
       prev.map((f) =>
@@ -135,21 +156,46 @@ export default function FotosScreen() {
       )
     );
 
-    // 4) Actualizamos en la base de datos
+    // 4) Actualizar el votes_count en la tabla fotos
     const { error: updateFotoError } = await db
       .from('fotos')
       .update({ votes_count: nuevaCuenta })
       .eq('id', foto.id);
 
-    if (updateFotoError) throw updateFotoError;
+    if (updateFotoError) {
+      console.log('— updateFotoError:', {
+        code: updateFotoError.code,
+        details: updateFotoError.details,
+        hint: updateFotoError.hint,
+        message: updateFotoError.message,
+        status: updateFotoError.status,
+      });
+      throw updateFotoError;
+    }
 
     Alert.alert('¡Gracias por tu voto!');
   } catch (error) {
-    console.log('Error al votar:', error);
-    Alert.alert('Error al votar', error.message);
+    // Imprimimos todas las propiedades posibles
+    console.log('— Error al votar completo:', {
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      message: error.message,
+      status: error.status,
+      // Por si tuviera otras keys no estándar:
+      ...error,
+    });
+
+    // Construir un alerta con el contenido útil (preferimos details/hint si message está vacío)
+    let texto = error.message;
+    if (!texto) {
+      if (error.details) texto = error.details;
+      else if (error.hint) texto = error.hint;
+      else texto = 'Ha ocurrido un error al votar. Revisa la consola.';
+    }
+    Alert.alert('Error al votar', texto);
   }
 };
-
 
   // 4) Renderizamos cada foto en la lista
   const renderItem = ({ item }) => {
@@ -206,7 +252,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   card: {
-    marginTop: 12,
+    marginTop: 40,
     marginBottom: 20,
     borderRadius: 12,
     overflow: 'hidden',
