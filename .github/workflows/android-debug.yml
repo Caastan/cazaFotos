@@ -4,7 +4,7 @@ name: Build Android Debug APK
 on:
   push:
     branches:
-      - dev   # Ajusta a la rama que uses (por ejemplo, develop)
+      - dev   # o la rama que prefieras
 
 jobs:
   build-debug:
@@ -22,11 +22,11 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      # 3) Instalar dependencias JavaScript
+      # 3) Instalar dependencias JS
       - name: Install dependencies
         run: npm ci
 
-      # 4) Generar carpetas nativas (en caso de Expo Managed Workflow)
+      # 4) Si tu proyecto es Expo Managed: generar carpetas nativas android/ e ios/
       - name: Prebuild Expo (Managed → Bare)
         run: npx expo prebuild --platform android --no-install
 
@@ -37,14 +37,41 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      # 6) Copiar el APK fuera de android/ para que no dependa de .gitignore
+      # 6) Copiar el APK fuera de android/ para evitar .gitignore
       - name: Copy Debug APK to root
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk ./app-debug.apk
 
-      # 7) Subir el APK Debug copiado como artefacto
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v2
+      # 7) Empaquetar todo el output-debug en un ZIP (para subirlo como artefacto ZIP)
+      - name: Zip Debug APK folder
+        run: |
+          cd android/app/build/outputs/apk/debug
+          zip -r ../../../../../debug-apk-output.zip .
+
+      # 8) Mostrar en el log dónde están los ficheros
+      - name: List generated files
+        run: |
+          echo ">>> APK Debug copiado en: ./app-debug.apk"
+          echo ">>> ZIP generado en: ./debug-apk-output.zip"
+          ls -lh .
+
+      # 9) Subir solo el ZIP como artefacto, utilizando el comando 'actions/create-release' 
+      #    porque 'upload-artifact' falla. Lo podemos “incrustar” en el Releases de GitHub con una etiqueta.
+      - name: Create GitHub Release (draft)
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: app-debug.apk
-          path: app-debug.apk
+          tag_name: debug-${{ github.run_id }}
+          release_name: "Debug APK ${{ github.run_id }}"
+          draft: true
+          prerelease: true
+
+      # 10) Subir el ZIP como asset al Release que acabamos de crear
+      - name: Upload ZIP to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: debug-apk-output.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
