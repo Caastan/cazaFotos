@@ -93,6 +93,7 @@ export default function GestionUsuarios() {
 const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
+    marginTop: 22,
     backgroundColor: '#f8fafc',
   },
   card: {
