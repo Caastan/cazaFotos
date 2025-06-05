@@ -1,10 +1,15 @@
-# .github/workflows/android-debug.yml
 name: Build Android Debug APK
 
+# Dispara el workflow cada vez que hagas push a la rama 'main' (ajusta si tu rama es 'dev' o 'develop')
 on:
   push:
     branches:
-      - dev   # o la rama que prefieras
+      - dev
+
+permissions:
+  contents: write           # Necesario para crear releases y subir assets
+  issues: write             # (opcional) si en algún otro paso usas actions que crean issues
+  pull-requests: write      # (opcional) si necesitas generar comentarios en PRs
 
 jobs:
   build-debug:
@@ -15,7 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Instalar Node.js 18.x
+      # 2) Configurar Node.js 18.x (para npm, expo, etc.)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
@@ -26,37 +31,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 4) Si tu proyecto es Expo Managed: generar carpetas nativas android/ e ios/
+      # 4) Si tu proyecto es Expo Managed: generar carpetas nativas (android/)
+      #    Si ya tienes la carpeta android/ en el repo, puedes comentar/omitir este paso.
       - name: Prebuild Expo (Managed → Bare)
         run: npx expo prebuild --platform android --no-install
 
-      # 5) Compilar el APK Debug con Gradle
+      # 5) Compilar el APK Debug con Gradle (usa el debug‐keystore por defecto)
       - name: Build Debug APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      # 6) Copiar el APK fuera de android/ para evitar .gitignore
+      # 6) Copiar el APK Debug a la raíz (./app-debug.apk) para evitar .gitignore
       - name: Copy Debug APK to root
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk ./app-debug.apk
 
-      # 7) Empaquetar todo el output-debug en un ZIP (para subirlo como artefacto ZIP)
+      # 7) Comprimir la carpeta debug en un ZIP (contendrá app-debug.apk)
       - name: Zip Debug APK folder
         run: |
           cd android/app/build/outputs/apk/debug
           zip -r ../../../../../debug-apk-output.zip .
 
-      # 8) Mostrar en el log dónde están los ficheros
+      # 8) Mostrar en logs dónde quedaron los ficheros
       - name: List generated files
         run: |
           echo ">>> APK Debug copiado en: ./app-debug.apk"
           echo ">>> ZIP generado en: ./debug-apk-output.zip"
           ls -lh .
 
-      # 9) Subir solo el ZIP como artefacto, utilizando el comando 'actions/create-release' 
-      #    porque 'upload-artifact' falla. Lo podemos “incrustar” en el Releases de GitHub con una etiqueta.
+      # 9) Crear un Release en GitHub (draft, prerelease)
       - name: Create GitHub Release (draft)
         id: create_release
         uses: actions/create-release@v1
@@ -64,11 +69,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: debug-${{ github.run_id }}
-          release_name: "Debug APK ${{ github.run_id }}"
+          release_name: "Debug APK #${{ github.run_id }}"
           draft: true
           prerelease: true
 
-      # 10) Subir el ZIP como asset al Release que acabamos de crear
+      # 10) Subir el ZIP como asset al Release recién creado
       - name: Upload ZIP to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
