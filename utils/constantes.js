@@ -1,4 +1,4 @@
-// utils/constantes.js
+//CONSTANTES PARA SOLO TOCAR ESTE ARCHIVO CUANDO CAMBIEN LAS BASES DEL CONCURSO
 export const TEXTO_REGLAMENTO = `
 1. Objeto del concurso:
    El concurso de fotografía “CazaFotos” tiene como objetivo elegir las mejores fotografías enviadas por participantes registrados. Las bases son obligatorias para todos los participantes y votantes.

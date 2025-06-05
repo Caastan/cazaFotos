@@ -1,5 +1,3 @@
-// screens/FotosScreen.js
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -19,11 +17,14 @@ import { useIsFocused } from '@react-navigation/native';
 
 export default function FotosScreen() {
   const { user } = useAuth();
-  const [fotos, setFotos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const isFocused = useIsFocused();
+  const [fotos, setFotos] = useState([]);         // Lista de fotos aprobadas
+  const [loading, setLoading] = useState(true);   // Controla el indicador de carga
+  const isFocused = useIsFocused();               // Detecta si la pantalla está en foco
 
-  // 1) Trae todas las fotos con status = 'approved'
+  /**
+   * 1) Obtiene todas las fotos cuyo status sea 'approved', junto con el nombre de usuario
+   *    y ordena por votos de mayor a menor.
+   */
   const fetchFotos = async () => {
     setLoading(true);
     try {
@@ -39,11 +40,11 @@ export default function FotosScreen() {
             display_name
           )
         `)
-        .eq('status', 'approved')
-        .order('votes_count', { ascending: false });
+        .eq('status', 'approved')               // Filtrar solo fotos aprobadas
+        .order('votes_count', { ascending: false }); // Ordenar por votos descendente
 
       if (error) throw error;
-      setFotos(data || []);
+      setFotos(data || []);                     // Guardar resultado (o array vacío)
     } catch (error) {
       console.log('Error fetching fotos:', error);
       Alert.alert('Error', 'No se pudieron cargar las fotos.');
@@ -52,154 +53,173 @@ export default function FotosScreen() {
     }
   };
 
-  // 2a) Cada vez que esta pantalla reciba foco, volvemos a leer las fotos
+  /**
+   * 2a) Cada vez que esta pantalla recibe foco, recarga la lista de fotos.
+   *     Esto asegura que siempre veas datos actualizados al volver aquí.
+   */
   useEffect(() => {
     if (isFocused) {
       fetchFotos();
     }
   }, [isFocused]);
 
-  // 2b) Suscripción en tiempo real: si cualquier fila de "fotos" cambia el votes_count,
-  //    actualizamos nuestro estado local para que la UI refleje el nuevo valor.
+  /**
+   * 2b) Suscripción en tiempo real a la tabla "fotos".
+   *     Si cambia el votes_count de cualquier foto,
+   *     actualiza el estado local para reflejar el nuevo conteo sin tener que recargar toda la lista.
+   */
   useEffect(() => {
-     const fotosChannel = supabase
-    .channel('public:fotos')
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'fotos' },
-      (payload) => {
-        const updated = payload.new;
-        // Solo nos interesan fotos que estén aprobadas
-        if (updated.status === 'approved') {
-          setFotos((prev) =>
-            prev.map((f) =>
-              f.id === updated.id
-                ? { ...f, votes_count: updated.votes_count }
-                : f
-            )
-          );
+    const fotosChannel = supabase
+      .channel('public:fotos')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'fotos' },
+        (payload) => {
+          const updated = payload.new;
+          // Solo actualizamos fotos aprobadas
+          if (updated.status === 'approved') {
+            setFotos((prev) =>
+              prev.map((f) =>
+                f.id === updated.id
+                  ? { ...f, votes_count: updated.votes_count } // Actualiza solo el votes_count
+                  : f
+              )
+            );
+          }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
     return () => {
-      // 2) Nos desinscribimos al desmontar el componente
-    supabase.removeChannel(fotosChannel);
+      // Al desmontar el componente, cancelamos la suscripción para evitar fugas de memoria
+      supabase.removeChannel(fotosChannel);
     };
   }, []);
 
-  // 3) Función para votar: inserta fila en "votos" y hace UPDATE en "fotos"
- const handleVotar = async (foto) => {
-  // Sólo “general” activo puede votar
-  if (!user || user.rol !== 'general' || user.status !== 'active') {
-    return;
-  }
-
-  try {
-    // 1) Contar votos de hoy, usando ISOString para el filtro
-    const hoy = startOfToday();
-    const isoHoy = hoy.toISOString();
-
-    const { count, error: countError } = await db
-      .from('votos')
-      .select('id', { count: 'exact', head: true })
-      .eq('usuario_id', user.id)
-      .gte('created_at', isoHoy);
-
-    if (countError) {
-      console.log('— countError:', {
-        code: countError.code,
-        details: countError.details,
-        hint: countError.hint,
-        message: countError.message,
-        status: countError.status,
-      });
-      throw countError;
-    }
-
-    if (count >= 10) {
-      Alert.alert('Límite diario alcanzado', 'Solo puedes votar 10 veces al día.');
+  /**
+   * 3) Función para votar por una foto:
+   *    - Verifica que el usuario sea "general" y esté activo.
+   *    - Cuenta cuántos votos ha emitido hoy (límite 10).
+   *    - Inserta un registro en la tabla "votos".
+   *    - Actualiza localmente (optimistic UI) y en la tabla "fotos" el nuevo votes_count.
+   */
+  const handleVotar = async (foto) => {
+    // Solamente usuarios con rol 'general' y estado 'active' pueden votar
+    if (!user || user.rol !== 'general' || user.status !== 'active') {
       return;
     }
 
-    // 2) Insertar un nuevo voto
-    const { data: votoData, error: insertVotoError } = await db
-      .from('votos')
-      .insert({ usuario_id: user.id, foto_id: foto.id })
-      .select(); // devuelve la fila insertada (opcional)
+    try {
+      // 3.1) Determinar el inicio del día en formato ISO para filtrar los votos de hoy
+      const hoy = startOfToday();
+      const isoHoy = hoy.toISOString();
 
-    if (insertVotoError) {
-      console.log('— insertVotoError:', {
-        code: insertVotoError.code,
-        details: insertVotoError.details,
-        hint: insertVotoError.hint,
-        message: insertVotoError.message,
-        status: insertVotoError.status,
-      });
+      // Contar cuántos votos ha hecho el usuario hoy
+      const { count, error: countError } = await db
+        .from('votos')
+        .select('id', { count: 'exact', head: true })
+        .eq('usuario_id', user.id)
+        .gte('created_at', isoHoy);
 
-      // Si ya existe un voto igual (constraint UNIQUE), el código será 23505
-      if (insertVotoError.code === '23505') {
-        Alert.alert('Ya votaste esta foto', 'No puedes votar dos veces la misma foto.');
+      if (countError) {
+        console.log('— countError:', {
+          code: countError.code,
+          details: countError.details,
+          hint: countError.hint,
+          message: countError.message,
+          status: countError.status,
+        });
+        throw countError;
+      }
+
+      // Si el usuario ya votó 10 veces hoy, mostramos alerta y salimos
+      if (count >= 10) {
+        Alert.alert('Límite diario alcanzado', 'Solo puedes votar 10 veces al día.');
         return;
       }
-      throw insertVotoError;
-    }
 
-    // 3) Optimistic UI (subir contador localmente)
-    const nuevaCuenta = foto.votes_count + 1;
-    setFotos((prev) =>
-      prev.map((f) =>
-        f.id === foto.id
-          ? { ...f, votes_count: nuevaCuenta }
-          : f
-      )
-    );
+      // 3.2) Insertar el voto en la tabla "votos"
+      const { data: votoData, error: insertVotoError } = await db
+        .from('votos')
+        .insert({ usuario_id: user.id, foto_id: foto.id })
+        .select(); // .select() para obtener la fila insertada (opcional)
 
-    // 4) Actualizar el votes_count en la tabla fotos
-    const { error: updateFotoError } = await db
-      .from('fotos')
-      .update({ votes_count: nuevaCuenta })
-      .eq('id', foto.id);
+      if (insertVotoError) {
+        console.log('— insertVotoError:', {
+          code: insertVotoError.code,
+          details: insertVotoError.details,
+          hint: insertVotoError.hint,
+          message: insertVotoError.message,
+          status: insertVotoError.status,
+        });
 
-    if (updateFotoError) {
-      console.log('— updateFotoError:', {
-        code: updateFotoError.code,
-        details: updateFotoError.details,
-        hint: updateFotoError.hint,
-        message: updateFotoError.message,
-        status: updateFotoError.status,
+        // Si ya existe un voto para esta combinación usuario–foto, Postgres devuelve código 23505
+        if (insertVotoError.code === '23505') {
+          Alert.alert('Ya votaste esta foto', 'No puedes votar dos veces la misma foto.');
+          return;
+        }
+        throw insertVotoError;
+      }
+
+      // 3.3) Optimistic UI: actualizar localmente el contador de votos antes de la confirmación en BD
+      const nuevaCuenta = foto.votes_count + 1;
+      setFotos((prev) =>
+        prev.map((f) =>
+          f.id === foto.id
+            ? { ...f, votes_count: nuevaCuenta }
+            : f
+        )
+      );
+
+      // 3.4) Actualizar el votes_count en la tabla "fotos"
+      const { error: updateFotoError } = await db
+        .from('fotos')
+        .update({ votes_count: nuevaCuenta })
+        .eq('id', foto.id);
+
+      if (updateFotoError) {
+        console.log('— updateFotoError:', {
+          code: updateFotoError.code,
+          details: updateFotoError.details,
+          hint: updateFotoError.hint,
+          message: updateFotoError.message,
+          status: updateFotoError.status,
+        });
+        throw updateFotoError;
+      }
+
+      Alert.alert('¡Gracias por tu voto!');
+    } catch (error) {
+      // Registrar todos los campos del error para debugging
+      console.log('— Error al votar completo:', {
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+        status: error.status,
+        ...error, // Cualquier otra propiedad extra
       });
-      throw updateFotoError;
+
+      // Construir un mensaje amigable para mostrar en la alerta
+      let texto = error.message;
+      if (!texto) {
+        if (error.details) texto = error.details;
+        else if (error.hint) texto = error.hint;
+        else texto = 'Ha ocurrido un error al votar. Revisa la consola.';
+      }
+      Alert.alert('Error al votar', texto);
     }
+  };
 
-    Alert.alert('¡Gracias por tu voto!');
-  } catch (error) {
-    // Imprimimos todas las propiedades posibles
-    console.log('— Error al votar completo:', {
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-      message: error.message,
-      status: error.status,
-      // Por si tuviera otras keys no estándar:
-      ...error,
-    });
-
-    // Construir un alerta con el contenido útil (preferimos details/hint si message está vacío)
-    let texto = error.message;
-    if (!texto) {
-      if (error.details) texto = error.details;
-      else if (error.hint) texto = error.hint;
-      else texto = 'Ha ocurrido un error al votar. Revisa la consola.';
-    }
-    Alert.alert('Error al votar', texto);
-  }
-};
-
-  // 4) Renderizamos cada foto en la lista
+  /**
+   * 4) Función para renderizar cada elemento (foto) en la lista:
+   *    - Muestra imagen, nombre de usuario, fecha y cantidad de votos.
+   *    - Si el usuario puede votar, muestra botón de "Votar".
+   */
   const renderItem = ({ item }) => {
+    // Convertir la fecha ISO a formato local legible
     const fecha = new Date(item.created_at).toLocaleDateString();
+
     return (
       <View style={styles.card}>
         <Image source={{ uri: item.url }} style={styles.image} />
@@ -222,7 +242,9 @@ export default function FotosScreen() {
     );
   };
 
-  // 5) Indicador de carga
+  /**
+   * 5) Mientras se cargan las fotos, mostramos un indicador de carga centrado.
+   */
   if (loading) {
     return (
       <View style={styles.center}>
@@ -231,7 +253,10 @@ export default function FotosScreen() {
     );
   }
 
-  // 6) Lista de fotos aprobadas
+  /**
+   * 6) Renderiza la lista de fotos aprobadas usando FlatList.
+   *    - Si no hay fotos, muestra un mensaje de lista vacía.
+   */
   return (
     <FlatList
       data={fotos}
@@ -245,7 +270,7 @@ export default function FotosScreen() {
   );
 }
 
-// 7) Estilos originales (no han cambiado)
+// Estilos para el componente FotosScreen
 const styles = StyleSheet.create({
   listContainer: {
     padding: 12,
