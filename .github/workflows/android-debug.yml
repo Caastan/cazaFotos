@@ -1,44 +1,45 @@
+# Archivo: .github/workflows/android-debug.yml
 name: Build Android Debug APK
 
 on:
   push:
     branches:
-      - dev   # Cambia “main” por la rama que tú uses
+      - dev   # Cambia “main” por la rama que quieras usar
 
 jobs:
   build-debug:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Trae el código
+      # 1) Extraer el código
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Instala Node.js (versión 18.x)
+      # 2) Instalar Node.js (versión 18.x)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
 
-      # 3) Instala dependencias JS con npm
+      # 3) Instalar dependencias JavaScript
       - name: Install dependencies
         run: npm ci
 
-      # 4) Genera las carpetas nativas (en caso de estar en Managed Workflow)
+      # 4) Si estás en Expo Managed: generar carpetas nativas android/ e ios/
       - name: Prebuild Expo (Managed → Bare)
         run: npx expo prebuild --platform android --no-install
 
-      # 5) Compila el APK Debug con Gradle
+      # 5) Compilar el APK Debug con Gradle
       - name: Build Debug APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      # 6) Sube el APK Debug como artefacto de la Action
+      # 6) Subir el APK Debug como artefacto (usa v2 en vez de v3)
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: app-debug.apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
