@@ -1,4 +1,4 @@
-// utils/constantes.js
+//CONSTANTES PARA SOLO TOCAR ESTE ARCHIVO CUANDO CAMBIEN LAS BASES DEL CONCURSO
 export const TEXTO_REGLAMENTO = `
 1. Objeto del concurso:
    El concurso de fotografía “CazaFotos” tiene como objetivo elegir las mejores fotografías enviadas por participantes registrados. Las bases son obligatorias para todos los participantes y votantes.
@@ -78,10 +78,9 @@ Instrucciones para el envío de fotografías - Tema “Motos”:
 export const TEXTO_INSTRUCCIONES_SUBIDA_ALERT = 
   "TEMA – MOTOS\n" +
   "• Solo se aceptan fotos donde la protagonista sea una motocicleta.\n" +
-  "• Formato: JPEG/PNG, tamaño máximo 5 MB.\n" +
+  "• Formato: JPEG/PNG, tamaño máximo 1 MB.\n" +
   "• Plazo: 1–30 junio 2025.\n" +
   "• Puedes subir hasta 5 fotos (todas deben cumplir el tema).\n" +
-  "• Incluye título breve (marca/modelo).\n" +
   "¡Buena suerte!";
 
 export const TEMA_DEL_MES = 'MOTOS';

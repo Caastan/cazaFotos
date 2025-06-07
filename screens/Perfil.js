@@ -18,9 +18,16 @@ import Constants from 'expo-constants';
 
 export default function Perfil() {
   const { user, updateProfile, signOut } = useAuth();
+
   const [displayName, setDisplayName] = useState(user.display_name);
   const [imageUri, setImageUri] = useState(user.photourl);
   const [uploading, setUploading] = useState(false);
+
+  const [bio, setBio] = useState(user.bio || '');
+  const [location, setLocation] = useState(user.location || '');
+  const [website, setWebsite] = useState(user.website || '');
+  const [fechaNacimiento, setFechaNacimiento] = useState(user.fecha_nacimiento || '');
+
   const [stats, setStats] = useState({ totalFotos: 0, totalVotos: 0, votosHoy: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -32,9 +39,15 @@ export default function Perfil() {
             .from('fotos')
             .select('id', { count: 'exact', head: true })
             .eq('usuario_id', user.id);
-          const { data: votosSumData } = await db
-            .rpc('sumar_votos_por_usuario', { p_usuario_id: user.id });
-          const totalVotos = votosSumData?.sum || 0;
+
+          const { data: votosSumData, error: votosError } = await db.rpc('sumar_votos_por_usuario', {
+          p_usuario_id: user.id,
+        });
+
+        const totalVotos = votosSumData && votosSumData.length > 0 && votosSumData[0].sum != null
+          ? votosSumData[0].sum
+          : 0;
+
           setStats({ totalFotos: fotosCount, totalVotos, votosHoy: 0 });
         } else if (user.rol === 'general') {
           const hoy = startOfToday();
@@ -45,14 +58,16 @@ export default function Perfil() {
             .select('id', { count: 'exact', head: true })
             .eq('usuario_id', user.id)
             .gte('created_at', isoHoy);
+
           setStats({ totalFotos: 0, totalVotos: 0, votosHoy: votosHoyCount });
         }
       } catch (error) {
-        console.log('Error fetching stats:', error);
+        Alert.alert('Error fetching stats:', error);
       } finally {
         setLoadingStats(false);
       }
     };
+
     fetchStats();
   }, []);
 
@@ -118,7 +133,14 @@ export default function Perfil() {
   const handleSaveProfile = async () => {
     setUploading(true);
     try {
-      await updateProfile({ displayName, photourl: imageUri });
+      await updateProfile({
+        displayName,
+        photourl: imageUri,
+        bio,
+        location,
+        website,
+        fechaNacimiento,
+      });
       Alert.alert('Perfil actualizado');
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -143,6 +165,38 @@ export default function Perfil() {
         style={styles.input}
         value={displayName}
         onChangeText={setDisplayName}
+        placeholder="Nombre para mostrar"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Biografía"
+        value={bio}
+        onChangeText={setBio}
+        multiline
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Ubicación"
+        value={location}
+        onChangeText={setLocation}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Sitio web"
+        value={website}
+        onChangeText={setWebsite}
+        keyboardType="url"
+        autoCapitalize="none"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Fecha de nacimiento (dd/mm/aaaa)"
+        value={fechaNacimiento}
+        onChangeText={setFechaNacimiento}
       />
 
       {uploading ? (
@@ -153,6 +207,10 @@ export default function Perfil() {
         </TouchableOpacity>
       )}
 
+      <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
+        <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
+      </TouchableOpacity>
+
       <View style={styles.statsContainer}>
         {loadingStats ? (
           <ActivityIndicator />
@@ -160,20 +218,24 @@ export default function Perfil() {
           <>
             {user.rol === 'participante' && (
               <>
-                <Text style={styles.statsText}>Fotos subidas: {stats.totalFotos} / 5</Text>
-                <Text style={styles.statsText}>Votos recibidos: {stats.totalVotos}</Text>
+                <Text style={styles.statsText}>
+                  Fotos subidas: {stats.totalFotos} / 5
+                </Text>
+                <Text style={styles.statsText}>
+                  Votos recibidos: {stats.totalVotos}
+                </Text>
               </>
             )}
             {user.rol === 'general' && (
-              <Text style={styles.statsText}>Votos usados hoy: {stats.votosHoy} / 10</Text>
+              <Text style={styles.statsText}>
+                Votos usados hoy: {stats.votosHoy} / 10
+              </Text>
             )}
           </>
         )}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
-        <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
-      </TouchableOpacity>
+      
     </View>
   );
 }
@@ -225,6 +287,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   statsContainer: {
+    marginTop: 20,
     marginBottom: 24,
     alignItems: 'center',
   },
