@@ -78,10 +78,9 @@ Instrucciones para el envío de fotografías - Tema “Motos”:
 export const TEXTO_INSTRUCCIONES_SUBIDA_ALERT = 
   "TEMA – MOTOS\n" +
   "• Solo se aceptan fotos donde la protagonista sea una motocicleta.\n" +
-  "• Formato: JPEG/PNG, tamaño máximo 5 MB.\n" +
+  "• Formato: JPEG/PNG, tamaño máximo 1 MB.\n" +
   "• Plazo: 1–30 junio 2025.\n" +
   "• Puedes subir hasta 5 fotos (todas deben cumplir el tema).\n" +
-  "• Incluye título breve (marca/modelo).\n" +
   "¡Buena suerte!";
 
 export const TEMA_DEL_MES = 'MOTOS';

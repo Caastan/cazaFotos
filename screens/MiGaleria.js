@@ -22,6 +22,31 @@ export default function MiGaleria() {
   const [loading, setLoading] = useState(true);    // Controla el indicador de carga al inicializar y actualizar lista
   const [uploading, setUploading] = useState(false); // Controla el estado de subida de imagen
 
+  const validarImagen = async (uri) => {
+  // Comprobar extensión del archivo
+  const extension = uri.split('.').pop().toLowerCase();
+  const formatosValidos = ['jpg', 'jpeg', 'png'];
+  if (!formatosValidos.includes(extension)) {
+    Alert.alert('Formato inválido', 'Solo se permiten imágenes JPG o PNG.');
+    return false;
+  }
+
+  // Comprobar tamaño de archivo (usando FileSystem)
+  try {
+    const fileInfo = await fetch(uri);
+    const blob = await fileInfo.blob();
+    if (blob.size > 1048576) {
+      Alert.alert('Archivo demasiado grande', 'La imagen no puede superar 1 MB.');
+      return false;
+    }
+  } catch (err) {
+    Alert.alert('Error al validar imagen', 'No se pudo verificar el tamaño.');
+    return false;
+  }
+
+  return true;
+  };
+
   /**
    * 1) fetchMisFotos: obtiene todas las fotos del usuario desde la tabla "fotos"
    *    - Filtra por usuario_id igual al id del usuario autenticado
@@ -123,6 +148,13 @@ export default function MiGaleria() {
     try {
       // 3.3) Obtener URI y generar un nombre de archivo único
       const { uri } = assets[0];
+
+      // Validar formato y tamaño antes de subir
+      const esValida = await validarImagen(uri);
+      if (!esValida) {
+        setUploading(false);
+        return;
+      } 
       const filename = `${user.id}_${Date.now()}.jpg`;
 
       // 3.4) Construir FormData para subir vía fetch
