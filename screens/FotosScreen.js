@@ -46,7 +46,7 @@ export default function FotosScreen() {
       if (error) throw error;
       setFotos(data || []);                     // Guardar resultado (o array vacío)
     } catch (error) {
-      Alert.alert('Error fetching fotos:', error);
+      console.log('Error fetching fotos:', error);
       Alert.alert('Error', 'No se pudieron cargar las fotos.');
     } finally {
       setLoading(false);
@@ -122,7 +122,7 @@ export default function FotosScreen() {
         .gte('created_at', isoHoy);
 
       if (countError) {
-        Alert.alert('— countError:', {
+        console.log('— countError:', {
           code: countError.code,
           details: countError.details,
           hint: countError.hint,
@@ -145,7 +145,7 @@ export default function FotosScreen() {
         .select(); // .select() para obtener la fila insertada (opcional)
 
       if (insertVotoError) {
-        Alert.alert('— insertVotoError:', {
+        console.log('— insertVotoError:', {
           code: insertVotoError.code,
           details: insertVotoError.details,
           hint: insertVotoError.hint,
@@ -178,7 +178,7 @@ export default function FotosScreen() {
         .eq('id', foto.id);
 
       if (updateFotoError) {
-        Alert.alert('— updateFotoError:', {
+        console.log('— updateFotoError:', {
           code: updateFotoError.code,
           details: updateFotoError.details,
           hint: updateFotoError.hint,

@@ -65,7 +65,7 @@ export default function MiGaleria() {
       if (error) throw error;
       setFotos(data || []);  // Si no hay datos, se asigna array vacío
     } catch (error) {
-      Alert.alert('Error', 'No se pudieron cargar tus fotos.');
+      console.log('Error', 'No se pudieron cargar tus fotos.');
     } finally {
       setLoading(false);
     }
@@ -91,7 +91,7 @@ export default function MiGaleria() {
         .eq('usuario_id', user.id);
 
       if (countError) {
-        Alert.alert('Error contando fotos existentes:', countError);
+        console.log('Error contando fotos existentes:', countError);
         // Permitimos continuar el flujo a pesar del error de conteo
       } else if (count >= 5) {
         // Si ya alcanzó el límite, mostramos alerta y retornamos
@@ -102,7 +102,7 @@ export default function MiGaleria() {
         return;
       }
     } catch (err) {
-      Alert.alert('Excepción al contar fotos:', err);
+      console.log('Excepción al contar fotos:', err);
       // Bloqueamos la subida si no podemos verificar el número de fotos por seguridad
       Alert.alert(
         'Error',
@@ -222,7 +222,7 @@ export default function MiGaleria() {
         // 4.3) Eliminar el archivo del bucket "photos"
         const { error: removeError } = await supabase.storage.from('photos').remove([filePath]);
         if (removeError) {
-          Alert.alert('Error al remover archivo de Storage:', removeError);
+          console.log('Error al remover archivo de Storage:', removeError);
         }
       }
 

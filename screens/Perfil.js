@@ -62,7 +62,7 @@ export default function Perfil() {
           setStats({ totalFotos: 0, totalVotos: 0, votosHoy: votosHoyCount });
         }
       } catch (error) {
-        Alert.alert('Error fetching stats:', error);
+        console.log('Error fetching stats:', error);
       } finally {
         setLoadingStats(false);
       }
