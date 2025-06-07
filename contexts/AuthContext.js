@@ -224,12 +224,23 @@ export function AuthProvider({ children }) {
   };
 
   // Función para actualizar el perfil del usuario (display name y foto)
-  const updateProfile = async ({ displayName, photourl }) => {
+  const updateProfile = async ({
+      displayName,
+      photourl,
+      bio = '',
+      location = '',
+      website = '',
+      fechaNacimiento = '',
+    }) => {
     try {
       // Objeto con los campos a actualizar
       const updates = {
         display_name: displayName,
         photourl,
+        bio,
+        location,
+        website,
+        fecha_nacimiento: fechaNacimiento,
       };
       // Ejecutamos la actualización en la tabla "usuarios" para el id del usuario logueado
       const { error } = await db
@@ -238,8 +249,10 @@ export function AuthProvider({ children }) {
         .eq('id', user.id);
       if (error) throw error;
 
-      // Actualizamos el estado local para reflejar los nuevos datos
-      setUser({ ...user, ...updates });
+      setUser(prev => ({
+      ...prev,
+      ...updates,
+    }));
       Alert.alert('Perfil actualizado', 'Tus datos fueron actualizados correctamente.');
     } catch (error) {
       Alert.alert('Error al actualizar perfil', error.message);

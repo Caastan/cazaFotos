@@ -17,36 +17,39 @@ import { db, storage } from '../lib/supabaseClients';
 import Constants from 'expo-constants';
 
 export default function Perfil() {
-  // Obtiene datos del usuario, función para actualizar perfil y cerrar sesión desde el contexto
   const { user, updateProfile, signOut } = useAuth();
 
-  // Estados locales: nombre a mostrar, URI de la imagen de avatar, y banderas de carga
   const [displayName, setDisplayName] = useState(user.display_name);
   const [imageUri, setImageUri] = useState(user.photourl);
   const [uploading, setUploading] = useState(false);
 
-  // Estadísticas: número total de fotos, votos totales y votos hechos hoy
+  const [bio, setBio] = useState(user.bio || '');
+  const [location, setLocation] = useState(user.location || '');
+  const [website, setWebsite] = useState(user.website || '');
+  const [fechaNacimiento, setFechaNacimiento] = useState(user.fecha_nacimiento || '');
+
   const [stats, setStats] = useState({ totalFotos: 0, totalVotos: 0, votosHoy: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
-  // Al montar el componente, obtiene estadísticas según el rol del usuario
   useEffect(() => {
     const fetchStats = async () => {
       try {
         if (user.rol === 'participante') {
-          // Si es participante, cuenta cuántas fotos subió
           const { count: fotosCount } = await db
             .from('fotos')
             .select('id', { count: 'exact', head: true })
             .eq('usuario_id', user.id);
 
-          // Llama a una función almacenada (RPC) que suma todos los votos que recibieron sus fotos
-          const { data: votosSumData } = await db.rpc('sumar_votos_por_usuario', { p_usuario_id: user.id });
-          const totalVotos = votosSumData?.sum || 0;
+          const { data: votosSumData, error: votosError } = await db.rpc('sumar_votos_por_usuario', {
+          p_usuario_id: user.id,
+        });
+
+        const totalVotos = votosSumData && votosSumData.length > 0 && votosSumData[0].sum != null
+          ? votosSumData[0].sum
+          : 0;
 
           setStats({ totalFotos: fotosCount, totalVotos, votosHoy: 0 });
         } else if (user.rol === 'general') {
-          // Si es usuario “general”, cuenta cuántos votos usó hoy
           const hoy = startOfToday();
           const isoHoy = hoy.toISOString();
 
@@ -59,7 +62,7 @@ export default function Perfil() {
           setStats({ totalFotos: 0, totalVotos: 0, votosHoy: votosHoyCount });
         }
       } catch (error) {
-        console.log('Error fetching stats:', error);
+        Alert.alert('Error fetching stats:', error);
       } finally {
         setLoadingStats(false);
       }
@@ -68,40 +71,27 @@ export default function Perfil() {
     fetchStats();
   }, []);
 
-  /**
-   * pickImage: abre el selector de imágenes, sube el archivo a Storage en el bucket "avatars"
-   * - Solicita permisos
-   * - Genera un nombre de archivo único
-   * - Sube mediante fetch al endpoint de Supabase Storage
-   * - Obtiene la URL pública y actualiza la tabla "usuarios"
-   * - Actualiza el estado local con la nueva URI
-   */
   const pickImage = async () => {
-    // 1) Solicita permiso para acceder a la galería de imágenes
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       return Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería');
     }
 
-    // 2) Lanza el selector de imágenes
     const { assets, canceled } = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
     });
-    if (canceled) return; // Si el usuario cancela, salimos
+    if (canceled) return;
 
     setUploading(true);
     try {
-      // 3) Construye un nombre de archivo basado en el ID y marca de tiempo
       const { uri } = assets[0];
       const filename = `${user.id}_${Date.now()}.jpg`;
 
-      // 4) Prepara FormData para la subida
       const formData = new FormData();
       formData.append('file', { uri, name: filename, type: 'image/jpeg' });
 
-      // 5) Ejecuta la petición POST al endpoint de Storage
       const res = await fetch(
         `${Constants.expoConfig.extra.SUPABASE_URL}/storage/v1/object/avatars/${filename}`,
         {
@@ -120,20 +110,17 @@ export default function Perfil() {
         throw new Error(`Error en subida: ${res.status} ${err}`);
       }
 
-      // 6) Obtiene la URL pública del archivo subido
       const { data: { publicUrl }, error: urlError } = await storage
         .from('avatars')
         .getPublicUrl(filename);
       if (urlError) throw urlError;
 
-      // 7) Actualiza la columna photourl en la tabla "usuarios"
       const { error: dbError } = await db
         .from('usuarios')
         .update({ photourl: publicUrl })
         .eq('id', user.id);
       if (dbError) throw dbError;
 
-      // 8) Guarda la nueva URI en el estado local
       setImageUri(publicUrl);
       Alert.alert('¡Avatar actualizado!');
     } catch (e) {
@@ -143,13 +130,17 @@ export default function Perfil() {
     }
   };
 
-  /**
-   * handleSaveProfile: guarda los cambios del displayName y photourl llamando a updateProfile del contexto
-   */
   const handleSaveProfile = async () => {
     setUploading(true);
     try {
-      await updateProfile({ displayName, photourl: imageUri });
+      await updateProfile({
+        displayName,
+        photourl: imageUri,
+        bio,
+        location,
+        website,
+        fechaNacimiento,
+      });
       Alert.alert('Perfil actualizado');
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -160,7 +151,6 @@ export default function Perfil() {
 
   return (
     <View style={styles.container}>
-      {/* 1) Avatar: si existe imageUri, mostrará la imagen; de lo contrario, un placeholder */}
       <TouchableOpacity onPress={pickImage}>
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={styles.avatar} />
@@ -171,14 +161,44 @@ export default function Perfil() {
         )}
       </TouchableOpacity>
 
-      {/* 2) Input para editar el nombre a mostrar */}
       <TextInput
         style={styles.input}
         value={displayName}
         onChangeText={setDisplayName}
+        placeholder="Nombre para mostrar"
       />
 
-      {/* 3) Botón para guardar cambios: mientras uploading=true, muestra spinner */}
+      <TextInput
+        style={styles.input}
+        placeholder="Biografía"
+        value={bio}
+        onChangeText={setBio}
+        multiline
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Ubicación"
+        value={location}
+        onChangeText={setLocation}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Sitio web"
+        value={website}
+        onChangeText={setWebsite}
+        keyboardType="url"
+        autoCapitalize="none"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Fecha de nacimiento (dd/mm/aaaa)"
+        value={fechaNacimiento}
+        onChangeText={setFechaNacimiento}
+      />
+
       {uploading ? (
         <ActivityIndicator size="small" />
       ) : (
@@ -187,7 +207,10 @@ export default function Perfil() {
         </TouchableOpacity>
       )}
 
-      {/* 4) Sección de estadísticas: muestra datos distintos según rol */}
+      <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
+        <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
+      </TouchableOpacity>
+
       <View style={styles.statsContainer}>
         {loadingStats ? (
           <ActivityIndicator />
@@ -212,10 +235,7 @@ export default function Perfil() {
         )}
       </View>
 
-      {/* 5) Botón para cerrar sesión */}
-      <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
-        <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
-      </TouchableOpacity>
+      
     </View>
   );
 }
@@ -267,6 +287,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   statsContainer: {
+    marginTop: 20,
     marginBottom: 24,
     alignItems: 'center',
   },
