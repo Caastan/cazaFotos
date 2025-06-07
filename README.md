@@ -83,5 +83,5 @@ Este proyecto forma parte de un **Trabajo Fin de Grado** y su código se encuent
 
 ## 🧑‍🏫 Autor y colaboración
 
-Desarrollado por: **[Tu Nombre Completo]**  
-Repositorio supervisado por los profesores del TFG del grado de [nombre del grado].
+Desarrollado por: **Juan Castaño Carrilero**  
+Repositorio supervisado por los profesores del TFG del grado de [DAM].
