@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { Formik } from 'formik';
+import * as Yup from 'yup';
 
 export default function AuthScreen() {
   // Obtiene las funciones de registro e inicio de sesión desde el contexto de autenticación
@@ -27,6 +29,20 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
 
+  // Esquema de validación para Formik y Yup
+  const validationSchema = Yup.object().shape({
+    email: Yup.string()
+      .email('Email inválido')
+      .required('Campo requerido'),
+    password: Yup.string()
+      .min(8, 'Mínimo 8 caracteres')
+      .max(16, 'Máximo 16 caracteres')
+      .matches(/[a-z]/, 'Debe contener al menos una minúscula')
+      .matches(/[A-Z]/, 'Debe contener al menos una mayúscula')
+      .matches(/[\d\W]/, 'Debe contener un número o símbolo')
+      .required('Campo requerido'),
+  });
+
   // Alterna entre el formulario de "login" y el de "registro" y resetea los campos
   const toggleMode = () => {
     setIsLogin(!isLogin);
@@ -39,6 +55,13 @@ export default function AuthScreen() {
 
   // Maneja el registro de un usuario nuevo
   const handleRegister = async () => {
+     // Validación con Yup antes de enviar los datos
+    try {
+      await validationSchema.validate({ email, password });
+    } catch (validationError) {
+      Alert.alert('Error de validación', validationError.message);
+      return;
+    }
     // Verifica que las contraseñas coincidan antes de llamar al servicio
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Las contraseñas no coinciden.');
