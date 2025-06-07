@@ -74,7 +74,7 @@ export default function AuthScreen() {
       // Si el registro fue exitoso, cambiamos al modo "login" para que el usuario inicie sesión
       setIsLogin(true);
     } catch (error) {
-      console.error('Error en registro:', error);
+      console.log('Error en registro:', error);
       const msg = error?.message || String(error);
       Alert.alert('Error de registro', msg);
     } finally {
@@ -92,9 +92,8 @@ export default function AuthScreen() {
       // Si el inicio de sesión fue exitoso, es posible navegar a la pantalla principal automáticamente
       // (Dependiendo de la lógica de navegación global, aquí no se hace nada más)
     } catch (error) {
-       console.error('Error en login:', error);
+       console.log('Error en login:', error);
         const msg = error?.message || String(error);
-        Alert.alert('Error de inicio de sesión', msg);
     } finally {
       // Desactiva el spinner independientemente del resultado
       setLoading(false);
