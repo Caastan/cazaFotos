@@ -30,16 +30,18 @@ export function AuthProvider({ children }) {
       // Si no existe ninguna fila (status 406), asignamos null y salimos
       if (error && status === 406) {
         setUser(null);
-        return;
+        return null;
       }
       // Si ocurre cualquier otro error, lo lanzamos para manejarlo en el catch
       if (error) throw error;
 
       // Guardamos los datos del perfil en el estado
       setUser(data);
+      return data;
     } catch (error) {
       // En caso de error (p. ej. fallo de red), limpiamos el usuario
       setUser(null);
+      return null;
     } finally {
       // Siempre desactivamos el loading al finalizar la llamada
       setLoading(false);
@@ -50,29 +52,26 @@ export function AuthProvider({ children }) {
     // Listener que escucha cambios en el estado de autenticación (login/logout/token refresh, etc.)
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
-        // Si hay sesión activa (usuario logueado)
-        if (session?.user) {
-          const sbUser = session.user;
-
-          // Verificamos si el email está confirmado; si no, cerramos sesión y mostramos alerta
-          if (!sbUser.email_confirmed_at) {
-            await supabase.auth.signOut();
-            Alert.alert(
-              'Verifica tu correo',
-              'Debes verificar tu email antes de entrar a la aplicación.'
-            );
-            setUser(null);
-            setLoading(false);
-            return;
-          }
-
-          // Si el email está confirmado, obtenemos el perfil desde la tabla "usuarios"
-          await fetchUserProfile(sbUser);
-        } else {
-          // Si no hay sesión (usuario deslogueado), limpiamos estado y desactivamos loading
+        if (!session?.user) {
+          // Si no hay sesión, limpiamos estado y desactivamos loading
           setUser(null);
           setLoading(false);
+          return;
         }
+
+        const sbUser = session.user;
+        // Obtenemos el perfil para usuarios activos
+        const profile = await fetchUserProfile(sbUser);
+        if (!profile) {
+          // Sin perfil, cerramos sesión
+          await supabase.auth.signOut();
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        // En este punto, usuario Ok (email confirmado y rol general) o participante activo
+        // El resto de bloqueos se manejan antes del signIn
       }
     );
 
@@ -82,21 +81,15 @@ export function AuthProvider({ children }) {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        const sbUser = session.user;
-
-        // Igual que en el listener: si el email no está confirmado, solo desactivamos loading
-        if (!sbUser.email_confirmed_at) {
-          setLoading(false);
-          return;
-        }
-
-        // Si el email está confirmado, obtenemos el perfil
-        await fetchUserProfile(sbUser);
-      } else {
-        // Si no hay sesión al montar, paramos el spinner
+      if (!session?.user) {
+        // Si no hay sesión, paramos el spinner
         setLoading(false);
+        return;
       }
+
+      const sbUser = session.user;
+      // Solo refresca perfil, sin bloqueos aquí
+      await fetchUserProfile(sbUser);
     })();
 
     // Cleanup: al desmontar el componente, cancelamos la suscripción al listener
@@ -144,7 +137,6 @@ export function AuthProvider({ children }) {
           'Registro completado',
           'Revisa tu correo para verificar tu cuenta antes de entrar.'
         );
-        // El mail de verificación lo envía Supabase automáticamente
       } else {
         Alert.alert(
           'Registro completado',
@@ -161,7 +153,25 @@ export function AuthProvider({ children }) {
   // Función para iniciar sesión con email y contraseña
   const signIn = async ({ email, password }) => {
     try {
-      // Intentamos autenticar al usuario con Supabase Auth
+      // Revisar en tabla "usuarios" sin iniciar sesión
+      const { data: profile, error: pError } = await db
+        .from('usuarios')
+        .select('rol,status')
+        .eq('email', email)
+        .single();
+      if (pError) throw pError;
+
+      // Bloqueo de participantes PENDING o REJECTED antes de autenticar
+      if (profile.rol === 'participante' && profile.status === 'pending') {
+        Alert.alert('Cuenta pendiente', 'Tu cuenta aún no ha sido aprobada.');
+        return;
+      }
+      if (profile.rol === 'participante' && profile.status === 'rejected') {
+        Alert.alert('Cuenta rechazada', 'Tu solicitud fue rechazada.');
+        return;
+      }
+
+      // Autenticamos en Supabase
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -170,7 +180,7 @@ export function AuthProvider({ children }) {
 
       const sbUser = signInData.user;
 
-      // Verificamos si el email está confirmado; si no, cerramos sesión y mostramos alerta
+      // Verificamos si el email está confirmado; si no, mostramos alerta y salimos
       if (!sbUser.email_confirmed_at) {
         await supabase.auth.signOut();
         Alert.alert(
@@ -180,24 +190,8 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // Si está confirmado, obtenemos el perfil desde la tabla "usuarios"
+      // Si todo OK, cargamos perfil para usuario activo
       await fetchUserProfile(sbUser);
-
-      // Si el perfil indica rol "participante" y estado "pending", avisamos y cerramos sesión
-      if (user?.rol === 'participante' && user.status === 'pending') {
-        Alert.alert('Cuenta pendiente', 'Tu cuenta aún no ha sido aprobada.');
-        await supabase.auth.signOut();
-        setUser(null);
-      }
-      // Si el estado es "rejected", avisamos y cerramos sesión
-      if (user?.status === 'rejected') {
-        Alert.alert(
-          'Cuenta rechazada',
-          'Tu solicitud fue rechazada. Contacta al administrador.'
-        );
-        await supabase.auth.signOut();
-        setUser(null);
-      }
     } catch (error) {
       // Manejo de errores específicos según el mensaje que devuelve Supabase
       switch (error.message) {
@@ -211,7 +205,8 @@ export function AuthProvider({ children }) {
           Alert.alert('Email no confirmado', 'Por favor, verifica tu correo electrónico.');
           break;
         default:
-          Alert.alert('Error al iniciar sesión', error.message);
+          // Otros errores ya fueron mostrados arriba
+          break;
       }
       throw error;
     }
